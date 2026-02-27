@@ -582,9 +582,19 @@ document.head.appendChild(link);
   .tutorial-card h1 {
     font-family: 'Playfair Display', serif;
     font-size: 2.2rem;
-    color: var(--accent);
     letter-spacing: -1px;
     margin-bottom: 4px;
+    background: linear-gradient(90deg, #ff6b6b, #ffa94d, #ffe066, #69db7c, #4dabf7, #cc5de8, #ff6b6b);
+    background-size: 300% 100%;
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    animation: colorShift 4s linear infinite;
+  }
+
+  @keyframes colorShift {
+    0%   { background-position: 0% 50%; }
+    100% { background-position: 300% 50%; }
   }
   .tutorial-card .sub {
     font-size: 10px;
@@ -701,26 +711,30 @@ document.head.appendChild(link);
   <div class="tutorial-card">
     <h1>Color Match</h1>
     <div class="sub">Color Memory Game</div>
-    <div class="tutorial-list">
-      <div class="tutorial-item"><span class="icon">👁️</span><span><strong>Memorize</strong> a color shown for 5 seconds</span></div>
-      <div class="tutorial-item"><span class="icon">🎨</span><span><strong>Mix it</strong> from memory using the sliders</span></div>
-      <div class="tutorial-item"><span class="icon">🎯</span><span><strong>Score</strong> up to 100 pts per round based on accuracy</span></div>
-      <div class="tutorial-item"><span class="icon">🔁</span><span><strong>3 rounds</strong> — max score is 300. Score 80+ in a row for a <strong>streak bonus!</strong></span></div>
+
+    <div id="modeSelect">
+      <button class="btn-start-game" id="dailyBtn" onclick="beginDaily()" style="margin-bottom:10px;">
+        📅 Daily Challenge
+      </button>
+      <div id="dailyDoneMsg" style="display:none; font-size:10px; letter-spacing:2px; color:#69db7c; text-transform:uppercase; margin-bottom:10px;">✓ Today's challenge complete!</div>
+      <button class="btn-start-game" onclick="beginPractice()" style="background:var(--surface); color:var(--text); border:1px solid var(--border);">
+        🔀 Random Mode
+      </button>
+      <div style="font-size:10px; color:var(--muted); margin-top:16px; letter-spacing:1px;">Score 80+ in a row for a 🔥 streak bonus</div>
     </div>
-    <button class="btn-start-game" onclick="beginGame()">Tap to Play</button>
   </div>
 </div>
 
 <div class="game-container" id="gameArea">
 
   <div class="score-bar">
-    <div class="score-item">
-      <div class="score-label">Score</div>
-      <div class="score-value" id="totalScore">0</div>
+    <div class="score-item" style="flex:2;">
+      <div class="score-label" id="modeLabel">Practice</div>
+      <div class="score-value" id="totalScore" style="font-size:14px;">0</div>
     </div>
     <div class="score-item">
       <div class="score-label">Round</div>
-      <div class="round-value" id="roundDisplay">1 / 10</div>
+      <div class="round-value" id="roundDisplay">1 / 3</div>
     </div>
     <div class="score-item">
       <div class="score-label">Streak</div>
@@ -806,12 +820,12 @@ document.head.appendChild(link);
         <div class="diff-item">G diff: <span id="diffG">0</span></div>
         <div class="diff-item">B diff: <span id="diffB">0</span></div>
       </div>
-      <button class="btn-restart" id="nextBtn" onclick="nextRound()" style="display:none; margin:0 auto;">Next Round →</button>
+      <button class="btn-restart" id="nextBtn" onclick="haptic('light'); sounds.next(); nextRound()" style="display:none; margin:0 auto;">Next Round →</button>
     </div>
   </div>
 
   <div class="btn-row">
-    <button class="btn-submit" id="submitBtn" onclick="submitGuess()">Submit Match</button>
+    <button class="btn-submit" id="submitBtn" onclick="haptic('medium'); sounds.submit(); submitGuess()">Submit Match</button>
   </div>
 
   <div class="history" id="history"></div>
@@ -823,7 +837,8 @@ document.head.appendChild(link);
 
 <div class="gameover" id="gameOver">
   <div class="gameover-card">
-    <h2>Game Over</h2>
+    <h2 id="gameOverTitle">Game Over</h2>
+    <div id="dailyNum" style="display:none; font-size:10px; letter-spacing:3px; text-transform:uppercase; color:var(--muted); margin-bottom:8px;">—</div>
     <div class="final-score" id="finalScore">0</div>
     <div class="final-avg">out of 300</div>
     <div id="finalGrade" style="font-size:12px; letter-spacing:2px; margin: 8px 0 4px; font-family:'DM Mono',monospace;">—</div>
@@ -846,6 +861,86 @@ let streakBonus = 0;
 let bestScore = localStorage.getItem('chromaBest') || null;
 
 const $ = id => document.getElementById(id);
+
+// ── Sound System ─────────────────────────────────────────
+let audioCtx = null;
+function getAudio() {
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  return audioCtx;
+}
+
+function playTone(freq, type, duration, volume = 0.3, delay = 0) {
+  try {
+    const ctx = getAudio();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.type = type;
+    osc.frequency.setValueAtTime(freq, ctx.currentTime + delay);
+    gain.gain.setValueAtTime(0, ctx.currentTime + delay);
+    gain.gain.linearRampToValueAtTime(volume, ctx.currentTime + delay + 0.01);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + delay + duration);
+    osc.start(ctx.currentTime + delay);
+    osc.stop(ctx.currentTime + delay + duration);
+  } catch(e) {}
+}
+
+const sounds = {
+  // Countdown tick — soft click each second
+  tick() {
+    playTone(880, 'sine', 0.06, 0.15);
+  },
+  // Color hides — "go!" rising sweep
+  go() {
+    playTone(400, 'sine', 0.12, 0.2);
+    playTone(600, 'sine', 0.12, 0.2, 0.1);
+    playTone(800, 'sine', 0.15, 0.25, 0.2);
+  },
+  // Submit — neutral whoosh
+  submit() {
+    playTone(300, 'sine', 0.15, 0.2);
+    playTone(250, 'sine', 0.12, 0.15, 0.1);
+  },
+  // Perfect / excellent score — bright ascending chime
+  perfect() {
+    [523, 659, 784, 1047].forEach((f, i) => playTone(f, 'sine', 0.3, 0.25, i * 0.08));
+  },
+  // Good score — pleasant double chime
+  good() {
+    playTone(523, 'sine', 0.25, 0.2);
+    playTone(659, 'sine', 0.25, 0.2, 0.1);
+  },
+  // Ok score — neutral single note
+  ok() {
+    playTone(440, 'triangle', 0.2, 0.18);
+  },
+  // Bad score — descending sad notes
+  bad() {
+    playTone(400, 'triangle', 0.2, 0.2);
+    playTone(300, 'triangle', 0.25, 0.2, 0.15);
+  },
+  // Streak bonus — sparkly ascending run
+  streak() {
+    [600, 750, 900, 1100, 1300].forEach((f, i) => playTone(f, 'sine', 0.15, 0.18, i * 0.06));
+  },
+  // Next round — soft click forward
+  next() {
+    playTone(500, 'sine', 0.1, 0.15);
+    playTone(700, 'sine', 0.1, 0.15, 0.08);
+  },
+  // Game over fanfare
+  fanfare() {
+    const notes = [523, 659, 784, 659, 784, 1047];
+    const times = [0, 0.12, 0.24, 0.36, 0.44, 0.56];
+    notes.forEach((f, i) => playTone(f, 'sine', 0.3, 0.25, times[i]));
+  },
+  // Game over low score — sad trombone descend
+  sad() {
+    [350, 300, 250, 200].forEach((f, i) => playTone(f, 'triangle', 0.35, 0.22, i * 0.15));
+  },
+};
+// ─────────────────────────────────────────────────────────
 
 function rand(min, max) { return Math.floor(Math.random() * (max - min + 1)) + min; }
 
@@ -894,9 +989,15 @@ function setPhase(phase) {
 }
 
 function newTarget() {
-  target.r = rand(20, 235);
-  target.g = rand(20, 235);
-  target.b = rand(20, 235);
+  if (isDailyMode && dailyColors.length > 0) {
+    const c = dailyColors[dailyRoundIndex % dailyColors.length];
+    target.r = c.r; target.g = c.g; target.b = c.b;
+    dailyRoundIndex++;
+  } else {
+    target.r = rand(20, 235);
+    target.g = rand(20, 235);
+    target.b = rand(20, 235);
+  }
   $('targetSwatch').style.background = `rgb(${target.r},${target.g},${target.b})`;
   $('targetHex').textContent = '??????';
   $('hexRow').style.display = 'none';
@@ -931,6 +1032,7 @@ function newTarget() {
   let remaining = MEMORIZE_SECS - 1;
   const tick = setInterval(() => {
     numEl.textContent = remaining;
+    sounds.tick();
     remaining--;
     if (remaining < 0) {
       clearInterval(tick);
@@ -940,6 +1042,8 @@ function newTarget() {
 }
 
 function hideTarget() {
+  haptic('medium');
+  sounds.go();
   $('memorizeOverlay').classList.remove('show');
 
   // Switch to large your-mix panel
@@ -1137,6 +1241,22 @@ function submitGuess() {
   $('streakDisplay').textContent = streak > 0 ? (streakEmojis[Math.min(streak, 3)] + ' ' + streak) : '—';
   $('streakDisplay').style.color = streak >= 2 ? '#69db7c' : streak === 1 ? '#ffa94d' : 'var(--accent)';
 
+  // Haptic feedback based on score
+  if (roundScore >= 90) haptic('success');
+  else if (roundScore >= 70) haptic('medium');
+  else haptic('error');
+
+  // Sound based on score
+  if (roundScore >= 90) sounds.perfect();
+  else if (roundScore >= 70) sounds.good();
+  else if (roundScore >= 50) sounds.ok();
+  else sounds.bad();
+
+  // Extra buzz + sound for streak bonus
+  if (roundBonus > 0) {
+    setTimeout(() => { haptic('success'); sounds.streak(); }, 600);
+  }
+
   // Switch to side-by-side reveal
   setPhase('reveal');
   $('phaseLabel').textContent = '';
@@ -1211,27 +1331,30 @@ function nextRound() {
   newTarget();
 }
 
-function shareScore() {
-  const scoreEmoji = s => {
-    if (s >= 90) return '🟢';
-    if (s >= 70) return '🟡';
-    if (s >= 50) return '🟠';
-    return '🔴';
-  };
+function haptic(type = 'light') {
+  if (!navigator.vibrate) return;
+  if (type === 'light')   navigator.vibrate(10);
+  if (type === 'medium')  navigator.vibrate(30);
+  if (type === 'heavy')   navigator.vibrate([30, 20, 30]);
+  if (type === 'success') navigator.vibrate([10, 50, 20]);
+  if (type === 'error')   navigator.vibrate([50, 30, 50, 30, 50]);
+}
 
+function shareScore() {
+  const scoreEmoji = s => s >= 90 ? '🟢' : s >= 70 ? '🟡' : s >= 50 ? '🟠' : '🔴';
   const roundLines = scores.map((s, i) => `Round ${i + 1}: ${scoreEmoji(s)} ${s}/100`).join('\n');
   const streakLine = streakBonus > 0 ? `\n🔥 Streak bonus: +${streakBonus}` : '';
   const gradeLine = $('finalGrade').textContent;
+  const modeLine = isDailyMode ? `Daily Challenge #${getDayNumber()}` : 'Random Mode';
 
   const text =
-`🎨 Color Match
+`🎨 Color Match — ${modeLine}
 ${roundLines}${streakLine}
 ─────────────
 Total: ${totalScore}/300
 ${gradeLine}
 Play at: https://milicodes100.github.io/Color-Match/`;
 
-  // Try native share first (mobile), fall back to clipboard
   if (navigator.share) {
     navigator.share({ text }).catch(() => {});
   } else {
@@ -1304,9 +1427,19 @@ function getFinalGrade(score) {
 
 function endGame() {
   const saved = parseInt(localStorage.getItem('chromaBest') || '0');
+  if (totalScore > saved) localStorage.setItem('chromaBest', totalScore);
 
-  if (totalScore > saved) {
-    localStorage.setItem('chromaBest', totalScore);
+  // Save daily result
+  if (isDailyMode) {
+    localStorage.setItem(getTodayKey(), JSON.stringify({
+      score: totalScore, scores, streakBonus, day: getDayNumber()
+    }));
+    $('gameOverTitle').textContent = 'Daily Complete!';
+    $('dailyNum').textContent = `Daily Challenge #${getDayNumber()}`;
+    $('dailyNum').style.display = 'block';
+  } else {
+    $('gameOverTitle').textContent = 'Game Over';
+    $('dailyNum').style.display = 'none';
   }
 
   $('finalScore').textContent = totalScore;
@@ -1349,11 +1482,17 @@ function endGame() {
   breakdown.appendChild(totalRow);
 
   $('gameOver').classList.add('show');
+  haptic('heavy');
+  setTimeout(() => {
+    if (totalScore >= 210) sounds.fanfare();
+    else sounds.sad();
+  }, 300);
+
+  if (isDailyMode) addDailyCountdown();
 }
 
 function showTutorial() {
   $('gameOver').classList.remove('show');
-  // Reset panels to a neutral state so the game isn't black behind the overlay
   setPhase('memorize');
   $('targetSwatch').style.background = '#1a1a1a';
   $('yourSwatch').style.background = '#1a1a1a';
@@ -1363,12 +1502,146 @@ function showTutorial() {
   $('nextBtn').style.display = 'none';
   $('sliderPanel').style.opacity = '1';
   $('sliderPanel').style.pointerEvents = 'auto';
+
+  // Check if daily already played today
+  const alreadyPlayed = !!localStorage.getItem(getTodayKey());
+  $('dailyBtn').textContent = alreadyPlayed ? '📅 View Today\'s Result' : '📅 Daily Challenge';
+  $('dailyDoneMsg').style.display = alreadyPlayed ? 'block' : 'none';
+
   $('tutorialScreen').classList.add('show');
 }
 
-function beginGame() {
+// ── Daily challenge helpers ──────────────────────────────
+const DAILY_START = new Date('2026-01-01').getTime();
+
+function getDayNumber() {
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  return Math.floor((today - DAILY_START) / 86400000) + 1;
+}
+
+function getTodayKey() {
+  const now = new Date();
+  return `daily-${now.getFullYear()}-${now.getMonth()+1}-${now.getDate()}`;
+}
+
+// Seeded random number generator (mulberry32)
+function seededRand(seed) {
+  return function() {
+    seed |= 0; seed = seed + 0x6D2B79F5 | 0;
+    let t = Math.imul(seed ^ seed >>> 15, 1 | seed);
+    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  };
+}
+
+function getDailyColors() {
+  const dayNum = getDayNumber();
+  const rng = seededRand(dayNum * 999983);
+  const colors = [];
+  for (let i = 0; i < TOTAL_ROUNDS; i++) {
+    colors.push({
+      r: Math.floor(rng() * 215) + 20,
+      g: Math.floor(rng() * 215) + 20,
+      b: Math.floor(rng() * 215) + 20,
+    });
+  }
+  return colors;
+}
+
+let isDailyMode = false;
+let dailyColors = [];
+let dailyRoundIndex = 0;
+
+function beginDaily() {
+  const key = getTodayKey();
+  const saved = localStorage.getItem(key);
+  if (saved) {
+    // Already played today — show result
+    const data = JSON.parse(saved);
+    showDailyAlreadyPlayed(data);
+    return;
+  }
+  isDailyMode = true;
+  dailyColors = getDailyColors();
+  dailyRoundIndex = 0;
+  $('modeLabel').textContent = '📅 Daily #' + getDayNumber();
   $('tutorialScreen').classList.remove('show');
   startGame();
+}
+
+function beginPractice() {
+  isDailyMode = false;
+  $('modeLabel').textContent = '🔀 Random';
+  $('tutorialScreen').classList.remove('show');
+  startGame();
+}
+
+function showDailyAlreadyPlayed(data) {
+  // Show the saved score directly on the gameover screen
+  $('tutorialScreen').classList.remove('show');
+  $('gameOverTitle').textContent = 'Already Played!';
+  $('dailyNum').textContent = `Daily Challenge #${getDayNumber()}`;
+  $('dailyNum').style.display = 'block';
+  $('finalScore').textContent = data.score;
+  const grade = getFinalGrade(data.score);
+  $('finalGrade').textContent = grade.label;
+  $('finalGrade').style.color = grade.color;
+  if (data.streakBonus > 0) {
+    $('finalStreakBonus').textContent = `🔥 included +${data.streakBonus} streak bonus!`;
+    $('finalStreakBonus').style.display = 'block';
+  } else {
+    $('finalStreakBonus').style.display = 'none';
+  }
+  // Rebuild breakdown
+  const breakdown = $('roundBreakdown');
+  breakdown.innerHTML = '';
+  data.scores.forEach((s, i) => {
+    const color = s >= 90 ? '#69db7c' : s >= 70 ? '#e8d5b0' : s >= 50 ? '#ffa94d' : '#ff6b6b';
+    const row = document.createElement('div');
+    row.className = 'breakdown-row';
+    row.innerHTML = `<span>Round ${i+1}</span><div class="breakdown-bar-track"><div class="breakdown-bar-fill" style="width:${s}%;background:${color}"></div></div><span class="breakdown-score">${s}</span>`;
+    breakdown.appendChild(row);
+  });
+  const totalRow = document.createElement('div');
+  totalRow.className = 'breakdown-row';
+  totalRow.style.cssText = 'border-top:1px solid var(--border);padding-top:10px;margin-top:2px;';
+  totalRow.innerHTML = `<span style="color:var(--accent)">Total</span><div></div><span class="breakdown-score" style="color:var(--accent);font-size:16px">${data.score}</span>`;
+  breakdown.appendChild(totalRow);
+
+  // Restore scores/streakBonus for share
+  scores = data.scores;
+  totalScore = data.score;
+  streakBonus = data.streakBonus || 0;
+
+  $('gameOver').classList.add('show');
+  // Add countdown to next daily
+  addDailyCountdown();
+}
+
+function addDailyCountdown() {
+  let el = $('dailyCountdown');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'dailyCountdown';
+    el.style.cssText = 'font-size:10px;letter-spacing:2px;color:var(--muted);text-transform:uppercase;margin-bottom:12px;';
+    $('roundBreakdown').after(el);
+  }
+  function update() {
+    const now = new Date();
+    const tomorrow = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+    const diff = tomorrow - now;
+    const h = String(Math.floor(diff / 3600000)).padStart(2,'0');
+    const m = String(Math.floor((diff % 3600000) / 60000)).padStart(2,'0');
+    const s = String(Math.floor((diff % 60000) / 1000)).padStart(2,'0');
+    el.textContent = `Next daily in ${h}:${m}:${s}`;
+  }
+  update();
+  setInterval(update, 1000);
+}
+
+function beginGame() {
+  beginPractice();
 }
 
 function startGame() {
@@ -1411,6 +1684,11 @@ $('hueSlider').addEventListener('input', onHueChange);
 
 // Show tutorial on first load, not the game
 // startGame() is called by beginGame() when user taps Play
+
+// Check daily status on load
+const alreadyPlayedToday = !!localStorage.getItem(getTodayKey());
+$('dailyBtn').textContent = alreadyPlayedToday ? '📅 View Today\'s Result' : '📅 Daily Challenge';
+$('dailyDoneMsg').style.display = alreadyPlayedToday ? 'block' : 'none';
 
 // Show install banner on iOS Safari (not already installed)
 const isIos = /iphone|ipad|ipod/i.test(navigator.userAgent);
