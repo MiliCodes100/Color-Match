@@ -1017,6 +1017,16 @@ function endGame() {
 
 function showTutorial() {
   $('gameOver').classList.remove('show');
+  // Reset panels to a neutral state so the game isn't black behind the overlay
+  setPhase('memorize');
+  $('targetSwatch').style.background = '#1a1a1a';
+  $('yourSwatch').style.background = '#1a1a1a';
+  $('memorizeOverlay').classList.remove('show');
+  $('resultPanel').classList.remove('show');
+  $('submitBtn').style.display = 'block';
+  $('nextBtn').style.display = 'none';
+  $('sliderPanel').style.opacity = '1';
+  $('sliderPanel').style.pointerEvents = 'auto';
   $('tutorialScreen').classList.add('show');
 }
 
