@@ -220,9 +220,24 @@ document.head.appendChild(link);
     cursor: pointer;
   }
 
+  input[type=range].red-slider, input[type=range].green-slider, input[type=range].blue-slider {
+    height: 8px;
+    border-radius: 4px;
+  }
   input[type=range].red-slider   { background: linear-gradient(to right, #1a1a1a, #ff6b6b); }
   input[type=range].green-slider { background: linear-gradient(to right, #1a1a1a, #69db7c); }
   input[type=range].blue-slider  { background: linear-gradient(to right, #1a1a1a, #74c0fc); }
+
+  input[type=range].red-slider::-webkit-slider-thumb,
+  input[type=range].green-slider::-webkit-slider-thumb,
+  input[type=range].blue-slider::-webkit-slider-thumb {
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: var(--text);
+    border: 3px solid #111;
+    box-shadow: 0 0 0 2px rgba(255,255,255,0.3), 0 2px 8px rgba(0,0,0,0.5);
+  }
   input[type=range].hue-slider   {
     background: linear-gradient(to right,
       hsl(0,100%,50%), hsl(30,100%,50%), hsl(60,100%,50%),
@@ -249,6 +264,21 @@ document.head.appendChild(link);
   }
 
   .hue-letter { color: var(--accent); font-size: 11px; letter-spacing: 1px; }
+  .light-letter { color: #ccc; font-size: 11px; letter-spacing: 1px; }
+
+  input[type=range].light-slider {
+    background: linear-gradient(to right, #000000, #808080, #ffffff);
+    height: 8px;
+    border-radius: 4px;
+  }
+  input[type=range].light-slider::-webkit-slider-thumb {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: white;
+    border: 3px solid #111;
+    box-shadow: 0 0 0 2px rgba(255,255,255,0.4), 0 2px 8px rgba(0,0,0,0.6);
+  }
 
   input[type=range]::-webkit-slider-thumb {
     -webkit-appearance: none;
@@ -796,6 +826,12 @@ document.head.appendChild(link);
       <input type="range" id="bSlider" class="blue-slider" min="0" max="255" value="128">
       <div class="slider-val" id="bVal">128</div>
     </div>
+    <hr class="slider-divider">
+    <div class="slider-row">
+      <div class="slider-letter light-letter">L</div>
+      <input type="range" id="lightSlider" class="light-slider" min="0" max="200" value="100">
+      <div class="slider-val" id="lightVal">—</div>
+    </div>
   </div>
 
   <div class="result-panel" id="resultPanel">
@@ -858,6 +894,7 @@ let totalScore = 0;
 let scores = [];
 let streak = 0;
 let streakBonus = 0;
+let yourAdjusted = { r: 128, g: 128, b: 128 };
 let bestScore = localStorage.getItem('chromaBest') || null;
 
 const $ = id => document.getElementById(id);
@@ -972,11 +1009,31 @@ function updateYourColor() {
   const r = +$('rSlider').value;
   const g = +$('gSlider').value;
   const b = +$('bSlider').value;
+  const light = +$('lightSlider').value; // 0-200, 100 = neutral
+
+  // Apply lightness: <100 blends toward black, >100 blends toward white
+  let lr, lg, lb;
+  if (light <= 100) {
+    const t = light / 100; // 0=black, 1=original
+    lr = Math.round(r * t);
+    lg = Math.round(g * t);
+    lb = Math.round(b * t);
+  } else {
+    const t = (light - 100) / 100; // 0=original, 1=white
+    lr = Math.round(r + (255 - r) * t);
+    lg = Math.round(g + (255 - g) * t);
+    lb = Math.round(b + (255 - b) * t);
+  }
+
   $('rVal').textContent = r;
   $('gVal').textContent = g;
   $('bVal').textContent = b;
-  $('yourSwatch').style.background = `rgb(${r},${g},${b})`;
-  $('yourHex').textContent = toHex(r,g,b);
+  $('lightVal').textContent = light === 100 ? '—' : light < 100 ? '▼' + Math.round((1 - light/100) * 100) + '%' : '▲' + Math.round((light-100)) + '%';
+  $('yourSwatch').style.background = `rgb(${lr},${lg},${lb})`;
+  $('yourHex').textContent = toHex(lr, lg, lb);
+
+  // Store adjusted values for scoring
+  yourAdjusted = { r: lr, g: lg, b: lb };
 }
 
 const MEMORIZE_SECS = 5;
@@ -1202,9 +1259,9 @@ function animateCount(el, from, to, duration, color) {
 }
 
 function submitGuess() {
-  const r = +$('rSlider').value;
-  const g = +$('gSlider').value;
-  const b = +$('bSlider').value;
+  const r = yourAdjusted.r;
+  const g = yourAdjusted.g;
+  const b = yourAdjusted.b;
 
   const dr = Math.abs(r - target.r);
   const dg = Math.abs(g - target.g);
@@ -1327,6 +1384,8 @@ function nextRound() {
   $('rSlider').value = hr;
   $('gSlider').value = hg;
   $('bSlider').value = hb;
+  $('lightSlider').value = 100;
+  $('lightVal').textContent = '—';
   updateYourColor();
   newTarget();
 }
@@ -1673,11 +1732,13 @@ function startGame() {
   $('rSlider').value = hr;
   $('gSlider').value = hg;
   $('bSlider').value = hb;
+  $('lightSlider').value = 100;
+  $('lightVal').textContent = '—';
   updateYourColor();
   newTarget();
 }
 
-['rSlider','gSlider','bSlider'].forEach(id => {
+['rSlider','gSlider','bSlider','lightSlider'].forEach(id => {
   $(id).addEventListener('input', updateYourColor);
 });
 $('hueSlider').addEventListener('input', onHueChange);
