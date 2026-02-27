@@ -312,15 +312,28 @@ document.head.appendChild(link);
   /* Result overlay */
   .result-panel {
     display: none;
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 4px;
-    padding: 24px;
-    margin-bottom: 20px;
-    text-align: center;
+    position: fixed;
+    inset: 0;
+    background: rgba(10,10,10,0.88);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    z-index: 100;
+    align-items: center;
+    justify-content: center;
+    padding: 32px 24px;
     animation: fadeIn 0.3s ease;
   }
-  .result-panel.show { display: block; }
+  .result-panel.show { display: flex; }
+
+  .result-card {
+    width: 100%;
+    max-width: 360px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 32px 28px;
+    text-align: center;
+  }
 
   @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
 
@@ -375,19 +388,33 @@ document.head.appendChild(link);
   /* Game over */
   .gameover {
     display: none;
-    text-align: center;
-    padding: 32px;
+    position: fixed;
+    inset: 0;
+    background: rgba(10,10,10,0.88);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    z-index: 100;
+    align-items: center;
+    justify-content: center;
+    padding: 32px 24px;
+    animation: fadeIn 0.3s ease;
+  }
+  .gameover.show { display: flex; }
+
+  .gameover-card {
+    width: 100%;
+    max-width: 360px;
     background: var(--surface);
     border: 1px solid var(--border);
-    border-radius: 4px;
-    animation: fadeIn 0.4s ease;
+    border-radius: 8px;
+    padding: 32px 28px;
+    text-align: center;
   }
-  .gameover.show { display: block; }
-  .gameover h2 {
+  .gameover-card h2 {
     font-family: 'Playfair Display', serif;
-    font-size: 2rem;
+    font-size: 1.8rem;
     color: var(--accent);
-    margin-bottom: 8px;
+    margin-bottom: 4px;
   }
   .final-score { font-size: 56px; font-family: 'Playfair Display', serif; margin: 16px 0; }
   .final-avg { font-size: 12px; color: var(--muted); margin-bottom: 24px; }
@@ -421,6 +448,7 @@ document.head.appendChild(link);
   .breakdown-score { text-align: right; font-variant-numeric: tabular-nums; color: var(--text); }
 
   .btn-restart {
+    width: 100%;
     background: var(--accent);
     color: #111;
     font-family: 'DM Mono', monospace;
@@ -677,7 +705,7 @@ document.head.appendChild(link);
       <div class="tutorial-item"><span class="icon">👁️</span><span><strong>Memorize</strong> a color shown for 5 seconds</span></div>
       <div class="tutorial-item"><span class="icon">🎨</span><span><strong>Mix it</strong> from memory using the sliders</span></div>
       <div class="tutorial-item"><span class="icon">🎯</span><span><strong>Score</strong> up to 100 pts per round based on accuracy</span></div>
-      <div class="tutorial-item"><span class="icon">🔁</span><span><strong>3 rounds</strong> — max score is 300</span></div>
+      <div class="tutorial-item"><span class="icon">🔁</span><span><strong>3 rounds</strong> — max score is 300. Score 80+ in a row for a <strong>streak bonus!</strong></span></div>
     </div>
     <button class="btn-start-game" onclick="beginGame()">Tap to Play</button>
   </div>
@@ -693,6 +721,10 @@ document.head.appendChild(link);
     <div class="score-item">
       <div class="score-label">Round</div>
       <div class="round-value" id="roundDisplay">1 / 10</div>
+    </div>
+    <div class="score-item">
+      <div class="score-label">Streak</div>
+      <div class="score-value" id="streakDisplay">—</div>
     </div>
     <div class="score-item">
       <div class="score-label">Best</div>
@@ -753,18 +785,33 @@ document.head.appendChild(link);
   </div>
 
   <div class="result-panel" id="resultPanel">
-    <div class="result-score" id="resultScore">—</div>
-    <div class="result-label">points this round</div>
-    <div class="color-diff">
-      <div class="diff-item">R diff: <span id="diffR">0</span></div>
-      <div class="diff-item">G diff: <span id="diffG">0</span></div>
-      <div class="diff-item">B diff: <span id="diffB">0</span></div>
+    <div class="result-card">
+      <div id="gradeDisplay" style="font-size:11px; letter-spacing:3px; text-transform:uppercase; color:var(--muted); margin-bottom:6px;">—</div>
+      <div class="result-score" id="resultScore">—</div>
+      <div class="result-label">points this round</div>
+      <div id="streakBonusDisplay" style="display:none; font-size:11px; letter-spacing:2px; text-transform:uppercase; color:#69db7c; margin-bottom:4px;">🔥 +bonus streak points!</div>
+      <div id="colorNameDisplay" style="font-size:13px; color:var(--accent); letter-spacing:1px; margin-bottom:16px;">—</div>
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:16px;">
+        <div>
+          <div style="font-size:9px; letter-spacing:2px; text-transform:uppercase; color:var(--muted); margin-bottom:6px;">Target</div>
+          <div id="resultTargetSwatch" style="height:60px; border-radius:4px; border:1px solid var(--border);"></div>
+        </div>
+        <div>
+          <div style="font-size:9px; letter-spacing:2px; text-transform:uppercase; color:var(--muted); margin-bottom:6px;">Your Mix</div>
+          <div id="resultYourSwatch" style="height:60px; border-radius:4px; border:1px solid var(--border);"></div>
+        </div>
+      </div>
+      <div class="color-diff" style="margin-bottom:24px;">
+        <div class="diff-item">R diff: <span id="diffR">0</span></div>
+        <div class="diff-item">G diff: <span id="diffG">0</span></div>
+        <div class="diff-item">B diff: <span id="diffB">0</span></div>
+      </div>
+      <button class="btn-restart" id="nextBtn" onclick="nextRound()" style="display:none; margin:0 auto;">Next Round →</button>
     </div>
   </div>
 
   <div class="btn-row">
     <button class="btn-submit" id="submitBtn" onclick="submitGuess()">Submit Match</button>
-    <button class="btn-next" id="nextBtn" onclick="nextRound()" style="display:none">Next Round →</button>
   </div>
 
   <div class="history" id="history"></div>
@@ -775,11 +822,17 @@ document.head.appendChild(link);
 </div>
 
 <div class="gameover" id="gameOver">
-  <h2>Game Over</h2>
-  <div class="final-score" id="finalScore">0</div>
-  <div class="final-avg">out of 300</div>
-  <div class="round-breakdown" id="roundBreakdown"></div>
-  <button class="btn-restart" onclick="showTutorial()">Play Again</button>
+  <div class="gameover-card">
+    <h2>Game Over</h2>
+    <div class="final-score" id="finalScore">0</div>
+    <div class="final-avg">out of 300</div>
+    <div id="finalGrade" style="font-size:12px; letter-spacing:2px; margin: 8px 0 4px; font-family:'DM Mono',monospace;">—</div>
+    <div id="finalStreakBonus" style="display:none; font-size:11px; letter-spacing:2px; color:#69db7c; margin-bottom:16px;">🔥 includes streak bonus!</div>
+    <div class="round-breakdown" id="roundBreakdown"></div>
+    <button class="btn-restart" id="shareBtn" onclick="shareScore()" style="margin-bottom:10px;">Share Score 🎨</button>
+    <div id="shareCopied" style="display:none; font-size:10px; letter-spacing:2px; color:#69db7c; margin-bottom:10px; text-transform:uppercase;">Copied to clipboard!</div>
+    <button class="btn-restart" onclick="showTutorial()" style="background:var(--surface); color:var(--text); border:1px solid var(--border);">Play Again</button>
+  </div>
 </div>
 
 <script>
@@ -788,6 +841,8 @@ let target = { r: 0, g: 0, b: 0 };
 let round = 1;
 let totalScore = 0;
 let scores = [];
+let streak = 0;
+let streakBonus = 0;
 let bestScore = localStorage.getItem('chromaBest') || null;
 
 const $ = id => document.getElementById(id);
@@ -898,6 +953,150 @@ function hideTarget() {
   $('sliderPanel').style.pointerEvents = 'auto';
 }
 
+function getColorName(r, g, b) {
+  const colors = [
+    { name: 'Red',           r:220, g:20,  b:20  },
+    { name: 'Crimson',       r:220, g:20,  b:60  },
+    { name: 'Dark Red',      r:139, g:0,   b:0   },
+    { name: 'Coral',         r:255, g:127, b:80  },
+    { name: 'Salmon',        r:250, g:128, b:114 },
+    { name: 'Orange Red',    r:255, g:69,  b:0   },
+    { name: 'Orange',        r:255, g:165, b:0   },
+    { name: 'Dark Orange',   r:255, g:140, b:0   },
+    { name: 'Gold',          r:255, g:215, b:0   },
+    { name: 'Yellow',        r:255, g:255, b:0   },
+    { name: 'Yellow Green',  r:154, g:205, b:50  },
+    { name: 'Lime',          r:0,   g:255, b:0   },
+    { name: 'Lime Green',    r:50,  g:205, b:50  },
+    { name: 'Green',         r:0,   g:128, b:0   },
+    { name: 'Dark Green',    r:0,   g:100, b:0   },
+    { name: 'Forest Green',  r:34,  g:139, b:34  },
+    { name: 'Mint',          r:62,  g:180, b:137 },
+    { name: 'Teal',          r:0,   g:128, b:128 },
+    { name: 'Cyan',          r:0,   g:255, b:255 },
+    { name: 'Sky Blue',      r:135, g:206, b:235 },
+    { name: 'Steel Blue',    r:70,  g:130, b:180 },
+    { name: 'Dodger Blue',   r:30,  g:144, b:255 },
+    { name: 'Blue',          r:0,   g:0,   b:255 },
+    { name: 'Royal Blue',    r:65,  g:105, b:225 },
+    { name: 'Navy',          r:0,   g:0,   b:128 },
+    { name: 'Indigo',        r:75,  g:0,   b:130 },
+    { name: 'Purple',        r:128, g:0,   b:128 },
+    { name: 'Dark Violet',   r:148, g:0,   b:211 },
+    { name: 'Violet',        r:238, g:130, b:238 },
+    { name: 'Magenta',       r:255, g:0,   b:255 },
+    { name: 'Hot Pink',      r:255, g:105, b:180 },
+    { name: 'Deep Pink',     r:255, g:20,  b:147 },
+    { name: 'Pink',          r:255, g:192, b:203 },
+    { name: 'Rose',          r:255, g:102, b:128 },
+    { name: 'Brown',         r:139, g:69,  b:19  },
+    { name: 'Chocolate',     r:210, g:105, b:30  },
+    { name: 'Tan',           r:210, g:180, b:140 },
+    { name: 'Khaki',         r:189, g:183, b:107 },
+    { name: 'Olive',         r:128, g:128, b:0   },
+    { name: 'Lavender',      r:230, g:230, b:250 },
+    { name: 'Periwinkle',    r:102, g:102, b:255 },
+    { name: 'Turquoise',     r:64,  g:224, b:208 },
+    { name: 'Aqua',          r:0,   g:200, b:200 },
+    { name: 'Ivory',         r:255, g:255, b:240 },
+    { name: 'Beige',         r:245, g:245, b:220 },
+    { name: 'White',         r:255, g:255, b:255 },
+    { name: 'Silver',        r:192, g:192, b:192 },
+    { name: 'Gray',          r:128, g:128, b:128 },
+    { name: 'Dark Gray',     r:64,  g:64,  b:64  },
+    { name: 'Charcoal',      r:54,  g:54,  b:54  },
+    { name: 'Black',         r:0,   g:0,   b:0   },
+  ];
+
+  let closest = colors[0];
+  let minDist = Infinity;
+  for (const c of colors) {
+    const d = Math.sqrt((r-c.r)**2 + (g-c.g)**2 + (b-c.b)**2);
+    if (d < minDist) { minDist = d; closest = c; }
+  }
+  return closest.name;
+}
+
+function getGrade(score) {
+  const pick = arr => arr[Math.floor(Math.random() * arr.length)];
+
+  if (score === 100) return { label: pick([
+    '✦ Are you even human?',
+    '✦ Literally flawless',
+    '✦ We are not worthy',
+    '✦ Call NASA. An alien is playing.',
+  ]), color: '#69db7c' };
+
+  if (score >= 95) return { label: pick([
+    '✦ Basically a genius',
+    '✦ Almost too good',
+    '✦ Your eyes are built different',
+    '✦ Suspiciously accurate',
+  ]), color: '#69db7c' };
+
+  if (score >= 90) return { label: pick([
+    '✦ Ok we see you',
+    '✦ Showing off a little',
+    '✦ That was smooth',
+    '✦ Color nerd detected',
+  ]), color: '#69db7c' };
+
+  if (score >= 80) return { label: pick([
+    '◆ Not bad at all',
+    '◆ Solid effort',
+    '◆ Your eyes work fine',
+    '◆ Getting warmer',
+  ]), color: '#e8d5b0' };
+
+  if (score >= 70) return { label: pick([
+    '◆ Could be worse',
+    '◆ Room to grow',
+    '◆ Mediocre but make it cute',
+    '◆ We\'ve seen better, we\'ve seen worse',
+  ]), color: '#e8d5b0' };
+
+  if (score >= 60) return { label: pick([
+    '▲ Were you even trying?',
+    '▲ A for effort. D for accuracy.',
+    '▲ Bold choice',
+    '▲ Interesting interpretation',
+  ]), color: '#ffa94d' };
+
+  if (score >= 50) return { label: pick([
+    '▲ Oof. Close-ish.',
+    '▲ That\'s one way to do it',
+    '▲ The vibe was there. Sort of.',
+    '▲ Half credit at best',
+  ]), color: '#ffa94d' };
+
+  if (score >= 35) return { label: pick([
+    '▼ Did you close your eyes?',
+    '▼ A bold and wrong choice',
+    '▼ The confidence though',
+    '▼ Not even in the same family',
+  ]), color: '#ff6b6b' };
+
+  return { label: pick([
+    '▼ Yikes. Just... yikes.',
+    '▼ Were you looking at the screen?',
+    '▼ That was a disaster and we respect it',
+    '▼ A true mystery of color theory',
+  ]), color: '#ff6b6b' };
+}
+
+function animateCount(el, from, to, duration, color) {
+  const start = performance.now();
+  el.style.color = color;
+  function tick(now) {
+    const progress = Math.min((now - start) / duration, 1);
+    const eased = 1 - Math.pow(1 - progress, 3); // ease out cubic
+    el.textContent = Math.round(from + (to - from) * eased);
+    if (progress < 1) requestAnimationFrame(tick);
+    else el.textContent = to;
+  }
+  requestAnimationFrame(tick);
+}
+
 function submitGuess() {
   const r = +$('rSlider').value;
   const g = +$('gSlider').value;
@@ -913,6 +1112,31 @@ function submitGuess() {
   totalScore += roundScore;
   scores.push(roundScore);
 
+  // Streak tracking — 80+ keeps streak alive
+  const STREAK_THRESHOLD = 80;
+  const BONUS_PER_STREAK = 10;
+  if (roundScore >= STREAK_THRESHOLD) {
+    streak++;
+  } else {
+    streak = 0;
+  }
+
+  // Award bonus if streak >= 2
+  const roundBonus = streak >= 2 ? BONUS_PER_STREAK * (streak - 1) : 0;
+  if (roundBonus > 0) {
+    streakBonus += roundBonus;
+    totalScore += roundBonus;
+    $('streakBonusDisplay').textContent = `🔥 +${roundBonus} streak bonus!`;
+    $('streakBonusDisplay').style.display = 'block';
+  } else {
+    $('streakBonusDisplay').style.display = 'none';
+  }
+
+  // Update streak display
+  const streakEmojis = ['—', '🔥', '🔥🔥', '🔥🔥🔥'];
+  $('streakDisplay').textContent = streak > 0 ? (streakEmojis[Math.min(streak, 3)] + ' ' + streak) : '—';
+  $('streakDisplay').style.color = streak >= 2 ? '#69db7c' : streak === 1 ? '#ffa94d' : 'var(--accent)';
+
   // Switch to side-by-side reveal
   setPhase('reveal');
   $('phaseLabel').textContent = '';
@@ -922,17 +1146,26 @@ function submitGuess() {
   $('targetSwatch').style.background = `rgb(${target.r},${target.g},${target.b})`;
   $('targetHex').textContent = toHex(target.r, target.g, target.b);
 
-  // Show result
-  $('resultScore').textContent = roundScore;
-  $('resultScore').style.color = roundScore >= 90 ? '#69db7c' : roundScore >= 70 ? '#e8d5b0' : roundScore >= 50 ? '#ffa94d' : '#ff6b6b';
+  // Show result diffs and swatches
   $('diffR').textContent = dr;
   $('diffG').textContent = dg;
   $('diffB').textContent = db;
+  $('resultTargetSwatch').style.background = `rgb(${target.r},${target.g},${target.b})`;
+  $('resultYourSwatch').style.background = `rgb(${r},${g},${b})`;
+  const scoreColor = roundScore >= 90 ? '#69db7c' : roundScore >= 70 ? '#e8d5b0' : roundScore >= 50 ? '#ffa94d' : '#ff6b6b';
+  const grade = getGrade(roundScore);
+  $('gradeDisplay').textContent = grade.label;
+  $('gradeDisplay').style.color = grade.color;
+  $('colorNameDisplay').textContent = 'Target: ' + getColorName(target.r, target.g, target.b);
   $('resultPanel').classList.add('show');
 
-  // Update totals
-  $('totalScore').textContent = totalScore;
+  // Animate round score counting up
+  animateCount($('resultScore'), 0, roundScore, 800, scoreColor);
+
+  // Update totals — animate total score (including any bonus)
+  const prevTotal = totalScore - roundScore - roundBonus;
   $('roundDisplay').textContent = `${round} / ${TOTAL_ROUNDS}`;
+  setTimeout(() => animateCount($('totalScore'), prevTotal, totalScore, 600, scoreColor), 400);
 
   // Add history dot
   const dot = document.createElement('div');
@@ -948,7 +1181,7 @@ function submitGuess() {
   $('sliderPanel').style.pointerEvents = 'none';
 
   if (round >= TOTAL_ROUNDS) {
-    setTimeout(endGame, 1200);
+    setTimeout(endGame, 2500);
   } else {
     $('nextBtn').style.display = 'block';
   }
@@ -978,6 +1211,97 @@ function nextRound() {
   newTarget();
 }
 
+function shareScore() {
+  const scoreEmoji = s => {
+    if (s >= 90) return '🟢';
+    if (s >= 70) return '🟡';
+    if (s >= 50) return '🟠';
+    return '🔴';
+  };
+
+  const roundLines = scores.map((s, i) => `Round ${i + 1}: ${scoreEmoji(s)} ${s}/100`).join('\n');
+  const streakLine = streakBonus > 0 ? `\n🔥 Streak bonus: +${streakBonus}` : '';
+  const gradeLine = $('finalGrade').textContent;
+
+  const text =
+`🎨 Color Match
+${roundLines}${streakLine}
+─────────────
+Total: ${totalScore}/300
+${gradeLine}
+Play at: https://milicodes100.github.io/Color-Match/`;
+
+  // Try native share first (mobile), fall back to clipboard
+  if (navigator.share) {
+    navigator.share({ text }).catch(() => {});
+  } else {
+    navigator.clipboard.writeText(text).then(() => {
+      $('shareCopied').style.display = 'block';
+      setTimeout(() => $('shareCopied').style.display = 'none', 2500);
+    });
+  }
+}
+
+function getFinalGrade(score) {
+  const pick = arr => arr[Math.floor(Math.random() * arr.length)];
+
+  if (score === 300) return { label: pick([
+    '✦ Literally perfect. Who are you?',
+    '✦ 300/300. We quit.',
+    '✦ Are you a color scientist?',
+    '✦ Flawless. Absolutely flawless.',
+  ]), color: '#69db7c' };
+
+  if (score >= 270) return { label: pick([
+    '✦ Basically a color wizard',
+    '✦ Your eyes should be insured',
+    '✦ Suspiciously talented',
+    '✦ Almost too good at this',
+  ]), color: '#69db7c' };
+
+  if (score >= 240) return { label: pick([
+    '✦ Ok seriously impressive',
+    '✦ Color theory called, it wants you',
+    '✦ We\'re taking notes',
+    '✦ Pantone wishes they had you',
+  ]), color: '#69db7c' };
+
+  if (score >= 210) return { label: pick([
+    '◆ Solid. Very solid.',
+    '◆ Your eyes are doing their job',
+    '◆ Above average and proud of it',
+    '◆ Not bad for a human',
+  ]), color: '#e8d5b0' };
+
+  if (score >= 180) return { label: pick([
+    '◆ Room for improvement, but ok',
+    '◆ Mediocre with style',
+    '◆ The middle is a valid place to be',
+    '◆ Half a color genius',
+  ]), color: '#e8d5b0' };
+
+  if (score >= 150) return { label: pick([
+    '▲ We\'ve seen worse. Barely.',
+    '▲ Points for showing up',
+    '▲ Your eyes need glasses maybe?',
+    '▲ Participation award unlocked',
+  ]), color: '#ffa94d' };
+
+  if (score >= 100) return { label: pick([
+    '▼ Did you do this on purpose?',
+    '▼ The colors were right there...',
+    '▼ Rough. Just rough.',
+    '▼ Have you considered a different hobby?',
+  ]), color: '#ff6b6b' };
+
+  return { label: pick([
+    '▼ A true disaster. Iconic.',
+    '▼ We don\'t know what happened here',
+    '▼ The audacity of these scores',
+    '▼ Rock bottom has a new address',
+  ]), color: '#ff6b6b' };
+}
+
 function endGame() {
   const saved = parseInt(localStorage.getItem('chromaBest') || '0');
 
@@ -986,6 +1310,19 @@ function endGame() {
   }
 
   $('finalScore').textContent = totalScore;
+
+  // Set final grade
+  const finalGrade = getFinalGrade(totalScore);
+  $('finalGrade').textContent = finalGrade.label;
+  $('finalGrade').style.color = finalGrade.color;
+
+  // Show streak bonus if earned
+  if (streakBonus > 0) {
+    $('finalStreakBonus').textContent = `🔥 includes +${streakBonus} streak bonus!`;
+    $('finalStreakBonus').style.display = 'block';
+  } else {
+    $('finalStreakBonus').style.display = 'none';
+  }
 
   // Build round breakdown
   const breakdown = $('roundBreakdown');
@@ -1038,6 +1375,10 @@ function startGame() {
   round = 1;
   totalScore = 0;
   scores = [];
+  streak = 0;
+  streakBonus = 0;
+  $('streakDisplay').textContent = '—';
+  $('streakDisplay').style.color = 'var(--accent)';
   $('history').innerHTML = '';
   $('totalScore').textContent = '0';
   $('roundDisplay').textContent = `1 / ${TOTAL_ROUNDS}`;
