@@ -37,7 +37,7 @@ link.href = manifestUrl;
 document.head.appendChild(link);
 </script>
 
-<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Playfair+Display:wght@400;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Righteous&family=DM+Mono:wght@400;500&family=Playfair+Display:wght@400;700&display=swap" rel="stylesheet">
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -441,9 +441,14 @@ document.head.appendChild(link);
     text-align: center;
   }
   .gameover-card h2 {
-    font-family: 'Playfair Display', serif;
+    font-family: 'Righteous', cursive;
     font-size: 1.8rem;
-    color: var(--accent);
+    background: linear-gradient(90deg, #ff6b6b, #ffa94d, #ffe066, #69db7c, #4dabf7, #cc5de8, #ff6b6b);
+    background-size: 300% 100%;
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    animation: colorShift 4s linear infinite;
     margin-bottom: 4px;
   }
   .final-score { font-size: 56px; font-family: 'Playfair Display', serif; margin: 16px 0; }
@@ -610,9 +615,9 @@ document.head.appendChild(link);
   }
 
   .tutorial-card h1 {
-    font-family: 'Playfair Display', serif;
-    font-size: 2.2rem;
-    letter-spacing: -1px;
+    font-family: 'Righteous', cursive;
+    font-size: 2.6rem;
+    letter-spacing: 1px;
     margin-bottom: 4px;
     background: linear-gradient(90deg, #ff6b6b, #ffa94d, #ffe066, #69db7c, #4dabf7, #cc5de8, #ff6b6b);
     background-size: 300% 100%;
