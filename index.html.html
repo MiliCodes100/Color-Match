@@ -1,0 +1,1774 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
+<title>Color Match</title>
+
+<!-- PWA / Add to Home Screen -->
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Color Match">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#0f0f0f">
+<meta name="description" content="A color memory matching game. Memorize the color, then mix it from memory.">
+
+<!-- App icons (inline SVG as data URI so no external files needed) -->
+<link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 180'%3E%3Crect width='180' height='180' rx='40' fill='%230f0f0f'/%3E%3Ccircle cx='90' cy='75' r='32' fill='none' stroke='%23e8d5b0' stroke-width='4'/%3E%3Ccircle cx='68' cy='108' r='22' fill='%23ff6b6b' opacity='.85'/%3E%3Ccircle cx='90' cy='108' r='22' fill='%2369db7c' opacity='.85'/%3E%3Ccircle cx='112' cy='108' r='22' fill='%2374c0fc' opacity='.85'/%3E%3C/svg%3E">
+
+<!-- Web App Manifest (inline) -->
+<script>
+const manifestData = {
+  name: "Color Match",
+  short_name: "Color Match",
+  description: "Memorize the color, then mix it from memory.",
+  start_url: ".",
+  display: "standalone",
+  background_color: "#0f0f0f",
+  theme_color: "#0f0f0f",
+  orientation: "portrait",
+  icons: []
+};
+const blob = new Blob([JSON.stringify(manifestData)], {type:'application/json'});
+const manifestUrl = URL.createObjectURL(blob);
+const link = document.createElement('link');
+link.rel = 'manifest';
+link.href = manifestUrl;
+document.head.appendChild(link);
+</script>
+
+<link href="https://fonts.googleapis.com/css2?family=Righteous&family=DM+Mono:wght@400;500&family=Playfair+Display:wght@400;700&display=swap" rel="stylesheet">
+
+<!-- Google AdSense -->
+<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-9829984726595934" crossorigin="anonymous"></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #0f0f0f;
+    --surface: #1a1a1a;
+    --border: #2e2e2e;
+    --text: #f0ede8;
+    --muted: #666;
+    --accent: #e8d5b0;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'DM Mono', monospace;
+    min-height: 100vh;
+    min-height: -webkit-fill-available;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+    padding: calc(env(safe-area-inset-top, 16px) + 20px) 20px calc(env(safe-area-inset-bottom, 16px) + 20px);
+    overflow-x: hidden;
+    -webkit-tap-highlight-color: transparent;
+    -webkit-touch-callout: none;
+    overscroll-behavior: none;
+  }
+
+  html {
+    height: -webkit-fill-available;
+    background: var(--bg);
+  }
+
+  h1 {
+    font-family: 'Playfair Display', serif;
+    font-size: clamp(2rem, 5vw, 3.5rem);
+    letter-spacing: -1px;
+    color: var(--accent);
+    margin-bottom: 4px;
+  }
+
+  .tagline {
+    font-size: 11px;
+    color: var(--muted);
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    margin-bottom: 40px;
+  }
+
+  .game-container {
+    width: 100%;
+    max-width: 680px;
+  }
+
+  /* Score bar */
+  .score-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 28px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .score-item { text-align: center; }
+  .score-label { font-size: 10px; color: var(--muted); letter-spacing: 2px; text-transform: uppercase; }
+  .score-value { font-size: 28px; font-weight: 500; color: var(--accent); }
+  .round-value { font-size: 16px; color: var(--text); margin-top: 2px; }
+
+  /* Color panels */
+  .panels {
+    position: relative;
+    margin-bottom: 20px;
+  }
+
+  /* During memorize: single large target */
+  .panels.memorize-phase .panel-target {
+    display: block;
+    width: 100%;
+  }
+  .panels.memorize-phase .panel-mix {
+    display: none;
+  }
+  .panels.memorize-phase .color-swatch {
+    height: 260px;
+  }
+
+  /* During mix phase: only your-mix shown, larger */
+  .panels.mix-phase .panel-target {
+    display: none;
+  }
+  .panels.mix-phase .panel-mix {
+    display: block;
+    width: 100%;
+  }
+  .panels.mix-phase .color-swatch {
+    height: 260px;
+  }
+
+  /* After submit: side by side */
+  .panels.reveal-phase {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+  }
+  .panels.reveal-phase .panel-target,
+  .panels.reveal-phase .panel-mix {
+    display: block;
+  }
+  .panels.reveal-phase .color-swatch {
+    height: 180px;
+  }
+
+  .panel {
+    position: relative;
+    border-radius: 4px;
+    overflow: hidden;
+    border: 1px solid var(--border);
+    transition: all 0.3s ease;
+  }
+
+  .panel-label {
+    position: absolute;
+    top: 12px;
+    left: 14px;
+    font-size: 10px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: rgba(255,255,255,0.9);
+    z-index: 2;
+    background: rgba(0,0,0,0.45);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+    padding: 4px 10px;
+    border-radius: 20px;
+  }
+
+  .color-swatch {
+    width: 100%;
+    height: 180px;
+    transition: background-color 0.3s ease, height 0.3s ease;
+  }
+
+  /* Sliders */
+  .sliders {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 22px 24px;
+    margin-bottom: 20px;
+  }
+
+  .slider-row {
+    display: grid;
+    grid-template-columns: 18px 1fr 52px;
+    align-items: center;
+    gap: 14px;
+  }
+
+  .slider-letter {
+    font-size: 12px;
+    font-weight: 500;
+    letter-spacing: 1px;
+  }
+  .r { color: #ff6b6b; }
+  .g { color: #69db7c; }
+  .b { color: #74c0fc; }
+
+  input[type=range] {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 100%;
+    height: 4px;
+    border-radius: 2px;
+    outline: none;
+    cursor: pointer;
+  }
+
+  input[type=range].red-slider, input[type=range].green-slider, input[type=range].blue-slider {
+    height: 8px;
+    border-radius: 4px;
+  }
+  input[type=range].red-slider   { background: linear-gradient(to right, #1a1a1a, #ff6b6b); }
+  input[type=range].green-slider { background: linear-gradient(to right, #1a1a1a, #69db7c); }
+  input[type=range].blue-slider  { background: linear-gradient(to right, #1a1a1a, #74c0fc); }
+
+  input[type=range].red-slider::-webkit-slider-thumb,
+  input[type=range].green-slider::-webkit-slider-thumb,
+  input[type=range].blue-slider::-webkit-slider-thumb {
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: var(--text);
+    border: 3px solid #111;
+    box-shadow: 0 0 0 2px rgba(255,255,255,0.3), 0 2px 8px rgba(0,0,0,0.5);
+  }
+  input[type=range].hue-slider   {
+    background: linear-gradient(to right,
+      hsl(0,100%,50%), hsl(30,100%,50%), hsl(60,100%,50%),
+      hsl(90,100%,50%), hsl(120,100%,50%), hsl(150,100%,50%),
+      hsl(180,100%,50%), hsl(210,100%,50%), hsl(240,100%,50%),
+      hsl(270,100%,50%), hsl(300,100%,50%), hsl(330,100%,50%),
+      hsl(360,100%,50%));
+    height: 8px;
+    border-radius: 4px;
+  }
+  input[type=range].hue-slider::-webkit-slider-thumb {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: white;
+    border: 3px solid #111;
+    box-shadow: 0 0 0 2px rgba(255,255,255,0.4), 0 2px 8px rgba(0,0,0,0.6);
+  }
+
+  .slider-divider {
+    border: none;
+    border-top: 1px solid var(--border);
+    margin: 4px 0;
+  }
+
+  .hue-letter { color: var(--accent); font-size: 11px; letter-spacing: 1px; }
+  .light-letter { color: #ccc; font-size: 11px; letter-spacing: 1px; }
+
+  input[type=range].light-slider {
+    background: linear-gradient(to right, #000000, #808080, #ffffff);
+    height: 8px;
+    border-radius: 4px;
+  }
+  input[type=range].light-slider::-webkit-slider-thumb {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: white;
+    border: 3px solid #111;
+    box-shadow: 0 0 0 2px rgba(255,255,255,0.4), 0 2px 8px rgba(0,0,0,0.6);
+  }
+
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: var(--text);
+    border: 2px solid var(--bg);
+    box-shadow: 0 0 6px rgba(0,0,0,0.5);
+    transition: transform 0.1s;
+  }
+  input[type=range]::-webkit-slider-thumb:hover { transform: scale(1.2); }
+
+  .slider-val {
+    font-size: 13px;
+    text-align: right;
+    color: var(--muted);
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Buttons */
+  .btn-row {
+    display: flex;
+    justify-content: center;
+    gap: 12px;
+  }
+
+  .btn-row button {
+    min-width: 160px;
+    max-width: 220px;
+    flex: 0 1 220px;
+  }
+
+  button {
+    font-family: 'DM Mono', monospace;
+    font-size: 12px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    border: none;
+    border-radius: 3px;
+    padding: 14px 20px;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+
+  .btn-submit {
+    background: var(--accent);
+    color: #111;
+    font-weight: 500;
+  }
+  .btn-submit:hover { filter: brightness(1.1); transform: translateY(-1px); }
+  .btn-submit:active { transform: translateY(0); }
+
+  .btn-next {
+    background: var(--surface);
+    color: var(--text);
+    border: 1px solid var(--border);
+  }
+  .btn-next:hover { border-color: var(--accent); color: var(--accent); }
+
+  /* Result overlay */
+  .result-panel {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(10,10,10,0.88);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    z-index: 100;
+    align-items: center;
+    justify-content: center;
+    padding: 32px 24px;
+    animation: fadeIn 0.3s ease;
+  }
+  .result-panel.show { display: flex; }
+
+  .result-card {
+    width: 100%;
+    max-width: 360px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 32px 28px;
+    text-align: center;
+  }
+
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+
+  .result-score {
+    font-family: 'Playfair Display', serif;
+    font-size: 56px;
+    line-height: 1;
+    margin-bottom: 6px;
+  }
+  .result-label {
+    font-size: 10px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 16px;
+  }
+
+  .color-diff {
+    display: flex;
+    justify-content: center;
+    gap: 24px;
+    font-size: 11px;
+    color: var(--muted);
+  }
+  .diff-item span { color: var(--text); font-weight: 500; }
+
+  /* History */
+  .history {
+    display: flex;
+    gap: 6px;
+    margin-top: 20px;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+  .history-dot {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    border: 2px solid var(--border);
+    position: relative;
+    overflow: hidden;
+    title: attr(data-score);
+  }
+  .history-dot::after {
+    content: '';
+    position: absolute;
+    bottom: 0; left: 0; right: 0;
+    background: rgba(255,255,255,0.8);
+    height: var(--fill);
+  }
+
+  /* Game over */
+  .gameover {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(10,10,10,0.88);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    z-index: 100;
+    align-items: center;
+    justify-content: center;
+    padding: 32px 24px;
+    animation: fadeIn 0.3s ease;
+  }
+  .gameover.show { display: flex; }
+
+  .gameover-card {
+    width: 100%;
+    max-width: 360px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 32px 28px;
+    text-align: center;
+  }
+  .gameover-card h2 {
+    font-family: 'Righteous', cursive;
+    font-size: 1.8rem;
+    background: linear-gradient(90deg, #ff6b6b, #ffa94d, #ffe066, #69db7c, #4dabf7, #cc5de8, #ff6b6b);
+    background-size: 300% 100%;
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    animation: colorShift 4s linear infinite;
+    margin-bottom: 4px;
+  }
+  .final-score { font-size: 56px; font-family: 'Playfair Display', serif; margin: 16px 0; }
+  .final-avg { font-size: 12px; color: var(--muted); margin-bottom: 24px; }
+
+  .round-breakdown {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin: 20px 0 28px;
+    text-align: left;
+  }
+  .breakdown-row {
+    display: grid;
+    grid-template-columns: 80px 1fr 48px;
+    align-items: center;
+    gap: 12px;
+    font-size: 12px;
+    color: var(--muted);
+  }
+  .breakdown-bar-track {
+    height: 6px;
+    background: var(--border);
+    border-radius: 3px;
+    overflow: hidden;
+  }
+  .breakdown-bar-fill {
+    height: 100%;
+    border-radius: 3px;
+    transition: width 0.6s ease;
+  }
+  .breakdown-score { text-align: right; font-variant-numeric: tabular-nums; color: var(--text); }
+
+  .btn-restart {
+    width: 100%;
+    background: var(--accent);
+    color: #111;
+    font-family: 'DM Mono', monospace;
+    font-size: 12px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    border: none;
+    border-radius: 3px;
+    padding: 14px 32px;
+    cursor: pointer;
+    font-weight: 500;
+  }
+  .btn-restart:hover { filter: brightness(1.1); }
+
+  /* Memorize overlay */
+  .memorize-overlay {
+    display: none;
+    position: absolute;
+    inset: 0;
+    background: rgba(15,15,15,0.0);
+    align-items: center;
+    justify-content: center;
+    z-index: 10;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .memorize-overlay.show { display: flex; }
+
+  .countdown-ring {
+    width: 60px;
+    height: 60px;
+    position: relative;
+  }
+  .countdown-ring svg {
+    transform: rotate(-90deg);
+  }
+  .countdown-ring circle.track {
+    fill: none;
+    stroke: rgba(255,255,255,0.15);
+    stroke-width: 4;
+  }
+  .countdown-ring circle.progress {
+    fill: none;
+    stroke: var(--accent);
+    stroke-width: 4;
+    stroke-linecap: round;
+    stroke-dasharray: 163.4;
+    stroke-dashoffset: 0;
+    transition: stroke-dashoffset 1s linear;
+  }
+  .countdown-num {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 22px;
+    font-weight: 500;
+    color: var(--accent);
+  }
+
+  .memorize-label {
+    font-size: 10px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: rgba(255,255,255,0.7);
+    text-shadow: 0 1px 4px rgba(0,0,0,0.8);
+  }
+
+  /* Hidden target panel */
+  .target-hidden {
+    background: var(--surface) !important;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .hidden-icon {
+    font-size: 28px;
+    opacity: 0.3;
+  }
+
+  /* Hex display */
+  .hex-row {
+    display: flex;
+    justify-content: space-between;
+    font-size: 11px;
+    color: var(--muted);
+    padding: 0 2px;
+    margin-bottom: 8px;
+    margin-top: 12px;
+    letter-spacing: 1px;
+  }
+  .hex-row span { color: var(--text); }
+
+  /* Phase label shown under the swatch */
+  .phase-label {
+    font-size: 10px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: var(--muted);
+    text-align: center;
+    margin-bottom: 16px;
+    min-height: 16px;
+  }
+  /* Tutorial overlay */
+  .tutorial-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(10,10,10,0.88);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    z-index: 100;
+    align-items: center;
+    justify-content: center;
+    padding: 32px 24px;
+    animation: fadeIn 0.3s ease;
+  }
+  .tutorial-overlay.show { display: flex; }
+
+  .tutorial-card {
+    width: 100%;
+    max-width: 360px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 32px 28px;
+    text-align: center;
+  }
+
+  .tutorial-card h1 {
+    font-family: 'Righteous', cursive;
+    font-size: 2.6rem;
+    letter-spacing: 1px;
+    margin-bottom: 4px;
+    background: linear-gradient(90deg, #ff6b6b, #ffa94d, #ffe066, #69db7c, #4dabf7, #cc5de8, #ff6b6b);
+    background-size: 300% 100%;
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    animation: colorShift 4s linear infinite;
+  }
+
+  @keyframes colorShift {
+    0%   { background-position: 0% 50%; }
+    100% { background-position: 300% 50%; }
+  }
+  .tutorial-card .sub {
+    font-size: 10px;
+    color: var(--muted);
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    margin-bottom: 28px;
+  }
+
+  .tutorial-list {
+    text-align: left;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    margin-bottom: 28px;
+  }
+  .tutorial-item {
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+    font-size: 12px;
+    color: var(--muted);
+    line-height: 1.6;
+  }
+  .tutorial-item .icon { font-size: 16px; flex-shrink: 0; margin-top: 1px; }
+  .tutorial-item strong { color: var(--text); }
+
+  .btn-start-game {
+    width: 100%;
+    background: var(--accent);
+    color: #111;
+    font-family: 'DM Mono', monospace;
+    font-size: 12px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    border: none;
+    border-radius: 3px;
+    padding: 16px 20px;
+    cursor: pointer;
+    font-weight: 500;
+    transition: all 0.15s;
+  }
+  .btn-start-game:hover { filter: brightness(1.1); }
+  .btn-start-game:active { transform: scale(0.98); }
+
+  /* Install banner */
+  .install-banner {
+    display: none;
+    width: 100%;
+    max-width: 680px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 12px 16px;
+    margin-bottom: 20px;
+    font-size: 11px;
+    color: var(--muted);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+  }
+  .install-banner strong { color: var(--accent); }
+
+  /* ── Mobile / iPhone optimisations ── */
+  @media (max-width: 480px) {
+    h1 { font-size: 2rem; margin-bottom: 2px; }
+    .tagline { margin-bottom: 20px; font-size: 10px; }
+
+    .score-bar { margin-bottom: 16px; padding-bottom: 12px; }
+    .score-value { font-size: 22px; }
+    .round-value { font-size: 14px; }
+
+    .panels.memorize-phase .color-swatch,
+    .panels.mix-phase .color-swatch { height: 200px; }
+    .panels.reveal-phase .color-swatch { height: 130px; }
+
+    .sliders { padding: 16px 18px; gap: 16px; }
+
+    /* Bigger thumb for finger tapping */
+    input[type=range]::-webkit-slider-thumb {
+      width: 24px;
+      height: 24px;
+    }
+    input[type=range].hue-slider { height: 10px; }
+    input[type=range].hue-slider::-webkit-slider-thumb {
+      width: 26px;
+      height: 26px;
+    }
+
+    /* Larger tap targets for buttons */
+    button { padding: 16px 20px; font-size: 11px; }
+    .btn-restart { padding: 16px 32px; }
+
+    .result-score { font-size: 44px; }
+    .final-score  { font-size: 44px; }
+    .gameover { padding: 24px 20px; }
+    .gameover h2 { font-size: 1.6rem; }
+  }
+
+  /* Prevent text selection while swiping sliders */
+  input[type=range] { touch-action: pan-x; }
+</style>
+</head>
+<body>
+
+<div class="install-banner" id="installBanner">
+  <span>📲 Tap <strong>Share → Add to Home Screen</strong> to install as an app</span>
+  <button onclick="document.getElementById('installBanner').style.display='none'" style="background:none;border:none;color:var(--muted);font-size:16px;cursor:pointer;padding:0 0 0 12px;">✕</button>
+</div>
+
+<!-- Tutorial Overlay -->
+<div class="tutorial-overlay show" id="tutorialScreen">
+  <div class="tutorial-card">
+    <h1>Color Match</h1>
+    <div class="sub">Color Memory Game</div>
+
+    <div id="modeSelect">
+      <button class="btn-start-game" id="dailyBtn" onclick="beginDaily()" style="margin-bottom:10px;">
+        📅 Daily Challenge
+      </button>
+      <div id="dailyDoneMsg" style="display:none; font-size:10px; letter-spacing:2px; color:#69db7c; text-transform:uppercase; margin-bottom:10px;">✓ Today's challenge complete!</div>
+      <button class="btn-start-game" onclick="beginPractice()" style="background:var(--surface); color:var(--text); border:1px solid var(--border);">
+        🔀 Random Mode
+      </button>
+      <div style="font-size:10px; color:var(--muted); margin-top:16px; letter-spacing:1px;">Score 80+ in a row for a 🔥 streak bonus</div>
+    </div>
+  </div>
+</div>
+
+<div class="game-container" id="gameArea">
+
+  <div class="score-bar">
+    <div class="score-item" style="flex:2;">
+      <div class="score-label" id="modeLabel">Practice</div>
+      <div class="score-value" id="totalScore" style="font-size:14px;">0</div>
+    </div>
+    <div class="score-item">
+      <div class="score-label">Round</div>
+      <div class="round-value" id="roundDisplay">1 / 3</div>
+    </div>
+    <div class="score-item">
+      <div class="score-label">Streak</div>
+      <div class="score-value" id="streakDisplay">—</div>
+    </div>
+    <div class="score-item">
+      <div class="score-label">Best</div>
+      <div class="score-value" id="bestScore">—</div>
+    </div>
+  </div>
+
+  <div class="panels memorize-phase" id="panels">
+    <div class="panel panel-target" style="position:relative;">
+      <div class="panel-label">Target — memorize this</div>
+      <div class="color-swatch" id="targetSwatch"></div>
+      <div class="memorize-overlay" id="memorizeOverlay">
+        <div class="countdown-ring">
+          <svg width="60" height="60" viewBox="0 0 60 60">
+            <circle class="track" cx="30" cy="30" r="26"/>
+            <circle class="progress" id="countdownCircle" cx="30" cy="30" r="26"/>
+          </svg>
+          <div class="countdown-num" id="countdownNum">5</div>
+        </div>
+        <div class="memorize-label">Memorize</div>
+      </div>
+    </div>
+    <div class="panel panel-mix">
+      <div class="panel-label">Your Mix</div>
+      <div class="color-swatch" id="yourSwatch"></div>
+    </div>
+  </div>
+
+  <div class="phase-label" id="phaseLabel">memorize the color</div>
+
+  <div class="hex-row" id="hexRow" style="display:none">
+    <div>Target: <span id="targetHex">#------</span></div>
+    <div>Yours: <span id="yourHex">#000000</span></div>
+  </div>
+
+  <div class="sliders" id="sliderPanel">
+    <div class="slider-row">
+      <div class="slider-letter hue-letter">H</div>
+      <input type="range" id="hueSlider" class="hue-slider" min="0" max="360" value="180">
+      <div class="slider-val" id="hueVal">180°</div>
+    </div>
+    <hr class="slider-divider">
+    <div class="slider-row">
+      <div class="slider-letter r">R</div>
+      <input type="range" id="rSlider" class="red-slider" min="0" max="255" value="128">
+      <div class="slider-val" id="rVal">128</div>
+    </div>
+    <div class="slider-row">
+      <div class="slider-letter g">G</div>
+      <input type="range" id="gSlider" class="green-slider" min="0" max="255" value="128">
+      <div class="slider-val" id="gVal">128</div>
+    </div>
+    <div class="slider-row">
+      <div class="slider-letter b">B</div>
+      <input type="range" id="bSlider" class="blue-slider" min="0" max="255" value="128">
+      <div class="slider-val" id="bVal">128</div>
+    </div>
+    <hr class="slider-divider">
+    <div class="slider-row">
+      <div class="slider-letter light-letter">L</div>
+      <input type="range" id="lightSlider" class="light-slider" min="0" max="200" value="100">
+      <div class="slider-val" id="lightVal">—</div>
+    </div>
+  </div>
+
+  <div class="result-panel" id="resultPanel">
+    <div class="result-card">
+      <div id="gradeDisplay" style="font-size:11px; letter-spacing:3px; text-transform:uppercase; color:var(--muted); margin-bottom:6px;">—</div>
+      <div class="result-score" id="resultScore">—</div>
+      <div class="result-label">points this round</div>
+      <div id="streakBonusDisplay" style="display:none; font-size:11px; letter-spacing:2px; text-transform:uppercase; color:#69db7c; margin-bottom:4px;">🔥 +bonus streak points!</div>
+      <div id="colorNameDisplay" style="font-size:13px; color:var(--accent); letter-spacing:1px; margin-bottom:16px;">—</div>
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:16px;">
+        <div>
+          <div style="font-size:9px; letter-spacing:2px; text-transform:uppercase; color:var(--muted); margin-bottom:6px;">Target</div>
+          <div id="resultTargetSwatch" style="height:60px; border-radius:4px; border:1px solid var(--border);"></div>
+        </div>
+        <div>
+          <div style="font-size:9px; letter-spacing:2px; text-transform:uppercase; color:var(--muted); margin-bottom:6px;">Your Mix</div>
+          <div id="resultYourSwatch" style="height:60px; border-radius:4px; border:1px solid var(--border);"></div>
+        </div>
+      </div>
+      <div class="color-diff" style="margin-bottom:24px;">
+        <div class="diff-item">R diff: <span id="diffR">0</span></div>
+        <div class="diff-item">G diff: <span id="diffG">0</span></div>
+        <div class="diff-item">B diff: <span id="diffB">0</span></div>
+      </div>
+      <button class="btn-restart" id="nextBtn" onclick="haptic('light'); sounds.next(); nextRound()" style="display:none; margin:0 auto;">Next Round →</button>
+    </div>
+  </div>
+
+  <div class="btn-row">
+    <button class="btn-submit" id="submitBtn" onclick="haptic('medium'); sounds.submit(); submitGuess()">Submit Match</button>
+  </div>
+
+  <div class="history" id="history"></div>
+
+  <div style="text-align:center; margin-top:20px;">
+    <button class="btn-next" onclick="showTutorial()" style="padding:12px 28px; letter-spacing:2px;">↺ Restart Game</button>
+  </div>
+
+  <div style="text-align:center; margin-top:24px; padding-bottom:24px;">
+    <a href="/privacy-policy.html" style="font-size:10px; letter-spacing:2px; text-transform:uppercase; color:var(--muted); text-decoration:none;">Privacy Policy</a>
+  </div>
+</div>
+
+<div class="gameover" id="gameOver">
+  <div class="gameover-card">
+    <h2 id="gameOverTitle">Game Over</h2>
+    <div id="dailyNum" style="display:none; font-size:10px; letter-spacing:3px; text-transform:uppercase; color:var(--muted); margin-bottom:8px;">—</div>
+    <div class="final-score" id="finalScore">0</div>
+    <div class="final-avg">out of 300</div>
+    <div id="finalGrade" style="font-size:12px; letter-spacing:2px; margin: 8px 0 4px; font-family:'DM Mono',monospace;">—</div>
+    <div id="finalStreakBonus" style="display:none; font-size:11px; letter-spacing:2px; color:#69db7c; margin-bottom:16px;">🔥 includes streak bonus!</div>
+    <div class="round-breakdown" id="roundBreakdown"></div>
+    <button class="btn-restart" id="shareBtn" onclick="shareScore()" style="margin-bottom:10px;">Share Score 🎨</button>
+    <div id="shareCopied" style="display:none; font-size:10px; letter-spacing:2px; color:#69db7c; margin-bottom:10px; text-transform:uppercase;">Copied to clipboard!</div>
+    <button class="btn-restart" onclick="showTutorial()" style="background:var(--surface); color:var(--text); border:1px solid var(--border);">Play Again</button>
+  </div>
+</div>
+
+<script>
+const TOTAL_ROUNDS = 3;
+let target = { r: 0, g: 0, b: 0 };
+let round = 1;
+let totalScore = 0;
+let scores = [];
+let streak = 0;
+let streakBonus = 0;
+let yourAdjusted = { r: 128, g: 128, b: 128 };
+let bestScore = localStorage.getItem('chromaBest') || null;
+
+const $ = id => document.getElementById(id);
+
+// ── Sound System ─────────────────────────────────────────
+let audioCtx = null;
+function getAudio() {
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  return audioCtx;
+}
+
+function playTone(freq, type, duration, volume = 0.3, delay = 0) {
+  try {
+    const ctx = getAudio();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.type = type;
+    osc.frequency.setValueAtTime(freq, ctx.currentTime + delay);
+    gain.gain.setValueAtTime(0, ctx.currentTime + delay);
+    gain.gain.linearRampToValueAtTime(volume, ctx.currentTime + delay + 0.01);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + delay + duration);
+    osc.start(ctx.currentTime + delay);
+    osc.stop(ctx.currentTime + delay + duration);
+  } catch(e) {}
+}
+
+const sounds = {
+  // Countdown tick — soft click each second
+  tick() {
+    playTone(880, 'sine', 0.06, 0.15);
+  },
+  // Color hides — "go!" rising sweep
+  go() {
+    playTone(400, 'sine', 0.12, 0.2);
+    playTone(600, 'sine', 0.12, 0.2, 0.1);
+    playTone(800, 'sine', 0.15, 0.25, 0.2);
+  },
+  // Submit — neutral whoosh
+  submit() {
+    playTone(300, 'sine', 0.15, 0.2);
+    playTone(250, 'sine', 0.12, 0.15, 0.1);
+  },
+  // Perfect / excellent score — bright ascending chime
+  perfect() {
+    [523, 659, 784, 1047].forEach((f, i) => playTone(f, 'sine', 0.3, 0.25, i * 0.08));
+  },
+  // Good score — pleasant double chime
+  good() {
+    playTone(523, 'sine', 0.25, 0.2);
+    playTone(659, 'sine', 0.25, 0.2, 0.1);
+  },
+  // Ok score — neutral single note
+  ok() {
+    playTone(440, 'triangle', 0.2, 0.18);
+  },
+  // Bad score — descending sad notes
+  bad() {
+    playTone(400, 'triangle', 0.2, 0.2);
+    playTone(300, 'triangle', 0.25, 0.2, 0.15);
+  },
+  // Streak bonus — sparkly ascending run
+  streak() {
+    [600, 750, 900, 1100, 1300].forEach((f, i) => playTone(f, 'sine', 0.15, 0.18, i * 0.06));
+  },
+  // Next round — soft click forward
+  next() {
+    playTone(500, 'sine', 0.1, 0.15);
+    playTone(700, 'sine', 0.1, 0.15, 0.08);
+  },
+  // Game over fanfare
+  fanfare() {
+    const notes = [523, 659, 784, 659, 784, 1047];
+    const times = [0, 0.12, 0.24, 0.36, 0.44, 0.56];
+    notes.forEach((f, i) => playTone(f, 'sine', 0.3, 0.25, times[i]));
+  },
+  // Game over low score — sad trombone descend
+  sad() {
+    [350, 300, 250, 200].forEach((f, i) => playTone(f, 'triangle', 0.35, 0.22, i * 0.15));
+  },
+};
+// ─────────────────────────────────────────────────────────
+
+function rand(min, max) { return Math.floor(Math.random() * (max - min + 1)) + min; }
+
+function toHex(r, g, b) {
+  return '#' + [r,g,b].map(v => v.toString(16).padStart(2,'0')).join('').toUpperCase();
+}
+
+// HSL to RGB conversion
+function hslToRgb(h, s, l) {
+  s /= 100; l /= 100;
+  const k = n => (n + h / 30) % 12;
+  const a = s * Math.min(l, 1 - l);
+  const f = n => l - a * Math.max(-1, Math.min(k(n) - 3, Math.min(9 - k(n), 1)));
+  return [Math.round(f(0)*255), Math.round(f(8)*255), Math.round(f(4)*255)];
+}
+
+// When hue slider moves, update RGB sliders to match the hue at full saturation/mid lightness
+function onHueChange() {
+  const h = +$('hueSlider').value;
+  $('hueVal').textContent = h + '°';
+  const [r, g, b] = hslToRgb(h, 100, 50);
+  $('rSlider').value = r;
+  $('gSlider').value = g;
+  $('bSlider').value = b;
+  updateYourColor();
+}
+
+function updateYourColor() {
+  const r = +$('rSlider').value;
+  const g = +$('gSlider').value;
+  const b = +$('bSlider').value;
+  const light = +$('lightSlider').value; // 0-200, 100 = neutral
+
+  // Apply lightness: <100 blends toward black, >100 blends toward white
+  let lr, lg, lb;
+  if (light <= 100) {
+    const t = light / 100; // 0=black, 1=original
+    lr = Math.round(r * t);
+    lg = Math.round(g * t);
+    lb = Math.round(b * t);
+  } else {
+    const t = (light - 100) / 100; // 0=original, 1=white
+    lr = Math.round(r + (255 - r) * t);
+    lg = Math.round(g + (255 - g) * t);
+    lb = Math.round(b + (255 - b) * t);
+  }
+
+  $('rVal').textContent = r;
+  $('gVal').textContent = g;
+  $('bVal').textContent = b;
+  $('lightVal').textContent = light === 100 ? '—' : light < 100 ? '▼' + Math.round((1 - light/100) * 100) + '%' : '▲' + Math.round((light-100)) + '%';
+  $('yourSwatch').style.background = `rgb(${lr},${lg},${lb})`;
+  $('yourHex').textContent = toHex(lr, lg, lb);
+
+  // Store adjusted values for scoring
+  yourAdjusted = { r: lr, g: lg, b: lb };
+}
+
+const MEMORIZE_SECS = 5;
+const CIRCUMFERENCE = 2 * Math.PI * 26; // ~163.4
+
+function setPhase(phase) {
+  const panels = $('panels');
+  panels.classList.remove('memorize-phase', 'mix-phase', 'reveal-phase');
+  panels.classList.add(phase + '-phase');
+}
+
+function newTarget() {
+  if (isDailyMode && dailyColors.length > 0) {
+    const c = dailyColors[dailyRoundIndex % dailyColors.length];
+    target.r = c.r; target.g = c.g; target.b = c.b;
+    dailyRoundIndex++;
+  } else {
+    target.r = rand(20, 235);
+    target.g = rand(20, 235);
+    target.b = rand(20, 235);
+  }
+  $('targetSwatch').style.background = `rgb(${target.r},${target.g},${target.b})`;
+  $('targetHex').textContent = '??????';
+  $('hexRow').style.display = 'none';
+  $('phaseLabel').textContent = 'memorize the color';
+
+  // Show only the target, fullscreen
+  setPhase('memorize');
+
+  // Lock controls during memorize phase
+  $('submitBtn').disabled = true;
+  $('submitBtn').style.opacity = '0.4';
+  $('sliderPanel').style.opacity = '0.4';
+  $('sliderPanel').style.pointerEvents = 'none';
+
+  // Show countdown overlay
+  const overlay = $('memorizeOverlay');
+  const circle = $('countdownCircle');
+  const numEl = $('countdownNum');
+
+  circle.style.transition = 'none';
+  circle.style.strokeDashoffset = '0';
+  numEl.textContent = MEMORIZE_SECS;
+  overlay.classList.add('show');
+
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      circle.style.transition = `stroke-dashoffset ${MEMORIZE_SECS}s linear`;
+      circle.style.strokeDashoffset = CIRCUMFERENCE;
+    });
+  });
+
+  let remaining = MEMORIZE_SECS - 1;
+  const tick = setInterval(() => {
+    numEl.textContent = remaining;
+    sounds.tick();
+    remaining--;
+    if (remaining < 0) {
+      clearInterval(tick);
+      hideTarget();
+    }
+  }, 1000);
+}
+
+function hideTarget() {
+  haptic('medium');
+  sounds.go();
+  $('memorizeOverlay').classList.remove('show');
+
+  // Switch to large your-mix panel
+  setPhase('mix');
+  $('phaseLabel').textContent = 'now match the color from memory';
+
+  // Unlock controls
+  $('submitBtn').disabled = false;
+  $('submitBtn').style.opacity = '1';
+  $('sliderPanel').style.opacity = '1';
+  $('sliderPanel').style.pointerEvents = 'auto';
+}
+
+function getColorName(r, g, b) {
+  const colors = [
+    { name: 'Red',           r:220, g:20,  b:20  },
+    { name: 'Crimson',       r:220, g:20,  b:60  },
+    { name: 'Dark Red',      r:139, g:0,   b:0   },
+    { name: 'Coral',         r:255, g:127, b:80  },
+    { name: 'Salmon',        r:250, g:128, b:114 },
+    { name: 'Orange Red',    r:255, g:69,  b:0   },
+    { name: 'Orange',        r:255, g:165, b:0   },
+    { name: 'Dark Orange',   r:255, g:140, b:0   },
+    { name: 'Gold',          r:255, g:215, b:0   },
+    { name: 'Yellow',        r:255, g:255, b:0   },
+    { name: 'Yellow Green',  r:154, g:205, b:50  },
+    { name: 'Lime',          r:0,   g:255, b:0   },
+    { name: 'Lime Green',    r:50,  g:205, b:50  },
+    { name: 'Green',         r:0,   g:128, b:0   },
+    { name: 'Dark Green',    r:0,   g:100, b:0   },
+    { name: 'Forest Green',  r:34,  g:139, b:34  },
+    { name: 'Mint',          r:62,  g:180, b:137 },
+    { name: 'Teal',          r:0,   g:128, b:128 },
+    { name: 'Cyan',          r:0,   g:255, b:255 },
+    { name: 'Sky Blue',      r:135, g:206, b:235 },
+    { name: 'Steel Blue',    r:70,  g:130, b:180 },
+    { name: 'Dodger Blue',   r:30,  g:144, b:255 },
+    { name: 'Blue',          r:0,   g:0,   b:255 },
+    { name: 'Royal Blue',    r:65,  g:105, b:225 },
+    { name: 'Navy',          r:0,   g:0,   b:128 },
+    { name: 'Indigo',        r:75,  g:0,   b:130 },
+    { name: 'Purple',        r:128, g:0,   b:128 },
+    { name: 'Dark Violet',   r:148, g:0,   b:211 },
+    { name: 'Violet',        r:238, g:130, b:238 },
+    { name: 'Magenta',       r:255, g:0,   b:255 },
+    { name: 'Hot Pink',      r:255, g:105, b:180 },
+    { name: 'Deep Pink',     r:255, g:20,  b:147 },
+    { name: 'Pink',          r:255, g:192, b:203 },
+    { name: 'Rose',          r:255, g:102, b:128 },
+    { name: 'Brown',         r:139, g:69,  b:19  },
+    { name: 'Chocolate',     r:210, g:105, b:30  },
+    { name: 'Tan',           r:210, g:180, b:140 },
+    { name: 'Khaki',         r:189, g:183, b:107 },
+    { name: 'Olive',         r:128, g:128, b:0   },
+    { name: 'Lavender',      r:230, g:230, b:250 },
+    { name: 'Periwinkle',    r:102, g:102, b:255 },
+    { name: 'Turquoise',     r:64,  g:224, b:208 },
+    { name: 'Aqua',          r:0,   g:200, b:200 },
+    { name: 'Ivory',         r:255, g:255, b:240 },
+    { name: 'Beige',         r:245, g:245, b:220 },
+    { name: 'White',         r:255, g:255, b:255 },
+    { name: 'Silver',        r:192, g:192, b:192 },
+    { name: 'Gray',          r:128, g:128, b:128 },
+    { name: 'Dark Gray',     r:64,  g:64,  b:64  },
+    { name: 'Charcoal',      r:54,  g:54,  b:54  },
+    { name: 'Black',         r:0,   g:0,   b:0   },
+  ];
+
+  let closest = colors[0];
+  let minDist = Infinity;
+  for (const c of colors) {
+    const d = Math.sqrt((r-c.r)**2 + (g-c.g)**2 + (b-c.b)**2);
+    if (d < minDist) { minDist = d; closest = c; }
+  }
+  return closest.name;
+}
+
+function getGrade(score) {
+  const pick = arr => arr[Math.floor(Math.random() * arr.length)];
+
+  if (score === 100) return { label: pick([
+    '✦ Are you even human?',
+    '✦ Literally flawless',
+    '✦ We are not worthy',
+    '✦ Call NASA. An alien is playing.',
+  ]), color: '#69db7c' };
+
+  if (score >= 95) return { label: pick([
+    '✦ Basically a genius',
+    '✦ Almost too good',
+    '✦ Your eyes are built different',
+    '✦ Suspiciously accurate',
+  ]), color: '#69db7c' };
+
+  if (score >= 90) return { label: pick([
+    '✦ Ok we see you',
+    '✦ Showing off a little',
+    '✦ That was smooth',
+    '✦ Color nerd detected',
+  ]), color: '#69db7c' };
+
+  if (score >= 80) return { label: pick([
+    '◆ Not bad at all',
+    '◆ Solid effort',
+    '◆ Your eyes work fine',
+    '◆ Getting warmer',
+  ]), color: '#e8d5b0' };
+
+  if (score >= 70) return { label: pick([
+    '◆ Could be worse',
+    '◆ Room to grow',
+    '◆ Mediocre but make it cute',
+    '◆ We\'ve seen better, we\'ve seen worse',
+  ]), color: '#e8d5b0' };
+
+  if (score >= 60) return { label: pick([
+    '▲ Were you even trying?',
+    '▲ A for effort. D for accuracy.',
+    '▲ Bold choice',
+    '▲ Interesting interpretation',
+  ]), color: '#ffa94d' };
+
+  if (score >= 50) return { label: pick([
+    '▲ Oof. Close-ish.',
+    '▲ That\'s one way to do it',
+    '▲ The vibe was there. Sort of.',
+    '▲ Half credit at best',
+  ]), color: '#ffa94d' };
+
+  if (score >= 35) return { label: pick([
+    '▼ Did you close your eyes?',
+    '▼ A bold and wrong choice',
+    '▼ The confidence though',
+    '▼ Not even in the same family',
+  ]), color: '#ff6b6b' };
+
+  return { label: pick([
+    '▼ Yikes. Just... yikes.',
+    '▼ Were you looking at the screen?',
+    '▼ That was a disaster and we respect it',
+    '▼ A true mystery of color theory',
+  ]), color: '#ff6b6b' };
+}
+
+function animateCount(el, from, to, duration, color) {
+  const start = performance.now();
+  el.style.color = color;
+  function tick(now) {
+    const progress = Math.min((now - start) / duration, 1);
+    const eased = 1 - Math.pow(1 - progress, 3); // ease out cubic
+    el.textContent = Math.round(from + (to - from) * eased);
+    if (progress < 1) requestAnimationFrame(tick);
+    else el.textContent = to;
+  }
+  requestAnimationFrame(tick);
+}
+
+function submitGuess() {
+  const r = yourAdjusted.r;
+  const g = yourAdjusted.g;
+  const b = yourAdjusted.b;
+
+  const dr = Math.abs(r - target.r);
+  const dg = Math.abs(g - target.g);
+  const db = Math.abs(b - target.b);
+  const maxDist = Math.sqrt(3 * 255 * 255);
+  const dist = Math.sqrt(dr*dr + dg*dg + db*db);
+  const roundScore = Math.round((1 - dist / maxDist) * 100);
+
+  totalScore += roundScore;
+  scores.push(roundScore);
+
+  // Streak tracking — 80+ keeps streak alive
+  const STREAK_THRESHOLD = 80;
+  const BONUS_PER_STREAK = 10;
+  if (roundScore >= STREAK_THRESHOLD) {
+    streak++;
+  } else {
+    streak = 0;
+  }
+
+  // Award bonus if streak >= 2
+  const roundBonus = streak >= 2 ? BONUS_PER_STREAK * (streak - 1) : 0;
+  if (roundBonus > 0) {
+    streakBonus += roundBonus;
+    totalScore += roundBonus;
+    $('streakBonusDisplay').textContent = `🔥 +${roundBonus} streak bonus!`;
+    $('streakBonusDisplay').style.display = 'block';
+  } else {
+    $('streakBonusDisplay').style.display = 'none';
+  }
+
+  // Update streak display
+  const streakEmojis = ['—', '🔥', '🔥🔥', '🔥🔥🔥'];
+  $('streakDisplay').textContent = streak > 0 ? (streakEmojis[Math.min(streak, 3)] + ' ' + streak) : '—';
+  $('streakDisplay').style.color = streak >= 2 ? '#69db7c' : streak === 1 ? '#ffa94d' : 'var(--accent)';
+
+  // Haptic feedback based on score
+  if (roundScore >= 90) haptic('success');
+  else if (roundScore >= 70) haptic('medium');
+  else haptic('error');
+
+  // Sound based on score
+  if (roundScore >= 90) sounds.perfect();
+  else if (roundScore >= 70) sounds.good();
+  else if (roundScore >= 50) sounds.ok();
+  else sounds.bad();
+
+  // Extra buzz + sound for streak bonus
+  if (roundBonus > 0) {
+    setTimeout(() => { haptic('success'); sounds.streak(); }, 600);
+  }
+
+  // Switch to side-by-side reveal
+  setPhase('reveal');
+  $('phaseLabel').textContent = '';
+  $('hexRow').style.display = 'flex';
+
+  // Reveal target color and hex
+  $('targetSwatch').style.background = `rgb(${target.r},${target.g},${target.b})`;
+  $('targetHex').textContent = toHex(target.r, target.g, target.b);
+
+  // Show result diffs and swatches
+  $('diffR').textContent = dr;
+  $('diffG').textContent = dg;
+  $('diffB').textContent = db;
+  $('resultTargetSwatch').style.background = `rgb(${target.r},${target.g},${target.b})`;
+  $('resultYourSwatch').style.background = `rgb(${r},${g},${b})`;
+  const scoreColor = roundScore >= 90 ? '#69db7c' : roundScore >= 70 ? '#e8d5b0' : roundScore >= 50 ? '#ffa94d' : '#ff6b6b';
+  const grade = getGrade(roundScore);
+  $('gradeDisplay').textContent = grade.label;
+  $('gradeDisplay').style.color = grade.color;
+  $('colorNameDisplay').textContent = 'Target: ' + getColorName(target.r, target.g, target.b);
+  $('resultPanel').classList.add('show');
+
+  // Animate round score counting up
+  animateCount($('resultScore'), 0, roundScore, 800, scoreColor);
+
+  // Update totals — animate total score (including any bonus)
+  const prevTotal = totalScore - roundScore - roundBonus;
+  $('roundDisplay').textContent = `${round} / ${TOTAL_ROUNDS}`;
+  setTimeout(() => animateCount($('totalScore'), prevTotal, totalScore, 600, scoreColor), 400);
+
+  // Add history dot
+  const dot = document.createElement('div');
+  dot.className = 'history-dot';
+  dot.style.background = `rgb(${target.r},${target.g},${target.b})`;
+  dot.style.setProperty('--fill', (100 - roundScore) + '%');
+  dot.title = `Round ${round}: ${roundScore}pts`;
+  $('history').appendChild(dot);
+
+  // Toggle buttons
+  $('submitBtn').style.display = 'none';
+  $('sliderPanel').style.opacity = '0.4';
+  $('sliderPanel').style.pointerEvents = 'none';
+
+  if (round >= TOTAL_ROUNDS) {
+    setTimeout(endGame, 2500);
+  } else {
+    $('nextBtn').style.display = 'block';
+  }
+}
+
+function nextRound() {
+  round++;
+  $('resultPanel').classList.remove('show');
+  $('submitBtn').style.display = 'block';
+  $('nextBtn').style.display = 'none';
+  $('sliderPanel').style.opacity = '1';
+  $('sliderPanel').style.pointerEvents = 'auto';
+  $('roundDisplay').textContent = `${round} / ${TOTAL_ROUNDS}`;
+
+  // Reset target swatch transition
+  $('memorizeOverlay').classList.remove('show');
+
+  // Randomize sliders
+  const hueStart = rand(0, 360);
+  $('hueSlider').value = hueStart;
+  $('hueVal').textContent = hueStart + '°';
+  const [hr, hg, hb] = hslToRgb(hueStart, 100, 50);
+  $('rSlider').value = hr;
+  $('gSlider').value = hg;
+  $('bSlider').value = hb;
+  $('lightSlider').value = 100;
+  $('lightVal').textContent = '—';
+  updateYourColor();
+  newTarget();
+}
+
+function haptic(type = 'light') {
+  if (!navigator.vibrate) return;
+  if (type === 'light')   navigator.vibrate(10);
+  if (type === 'medium')  navigator.vibrate(30);
+  if (type === 'heavy')   navigator.vibrate([30, 20, 30]);
+  if (type === 'success') navigator.vibrate([10, 50, 20]);
+  if (type === 'error')   navigator.vibrate([50, 30, 50, 30, 50]);
+}
+
+function shareScore() {
+  const scoreEmoji = s => s >= 90 ? '🟢' : s >= 70 ? '🟡' : s >= 50 ? '🟠' : '🔴';
+  const roundLines = scores.map((s, i) => `Round ${i + 1}: ${scoreEmoji(s)} ${s}/100`).join('\n');
+  const streakLine = streakBonus > 0 ? `\n🔥 Streak bonus: +${streakBonus}` : '';
+  const gradeLine = $('finalGrade').textContent;
+  const modeLine = isDailyMode ? `Daily Challenge #${getDayNumber()}` : 'Random Mode';
+
+  const text =
+`🎨 Color Match — ${modeLine}
+${roundLines}${streakLine}
+─────────────
+Total: ${totalScore}/300
+${gradeLine}
+Play at: https://colormatch.games`;
+
+  if (navigator.share) {
+    navigator.share({ text }).catch(() => {});
+  } else {
+    navigator.clipboard.writeText(text).then(() => {
+      $('shareCopied').style.display = 'block';
+      setTimeout(() => $('shareCopied').style.display = 'none', 2500);
+    });
+  }
+}
+
+function getFinalGrade(score) {
+  const pick = arr => arr[Math.floor(Math.random() * arr.length)];
+
+  if (score === 300) return { label: pick([
+    '✦ Literally perfect. Who are you?',
+    '✦ 300/300. We quit.',
+    '✦ Are you a color scientist?',
+    '✦ Flawless. Absolutely flawless.',
+  ]), color: '#69db7c' };
+
+  if (score >= 270) return { label: pick([
+    '✦ Basically a color wizard',
+    '✦ Your eyes should be insured',
+    '✦ Suspiciously talented',
+    '✦ Almost too good at this',
+  ]), color: '#69db7c' };
+
+  if (score >= 240) return { label: pick([
+    '✦ Ok seriously impressive',
+    '✦ Color theory called, it wants you',
+    '✦ We\'re taking notes',
+    '✦ Pantone wishes they had you',
+  ]), color: '#69db7c' };
+
+  if (score >= 210) return { label: pick([
+    '◆ Solid. Very solid.',
+    '◆ Your eyes are doing their job',
+    '◆ Above average and proud of it',
+    '◆ Not bad for a human',
+  ]), color: '#e8d5b0' };
+
+  if (score >= 180) return { label: pick([
+    '◆ Room for improvement, but ok',
+    '◆ Mediocre with style',
+    '◆ The middle is a valid place to be',
+    '◆ Half a color genius',
+  ]), color: '#e8d5b0' };
+
+  if (score >= 150) return { label: pick([
+    '▲ We\'ve seen worse. Barely.',
+    '▲ Points for showing up',
+    '▲ Your eyes need glasses maybe?',
+    '▲ Participation award unlocked',
+  ]), color: '#ffa94d' };
+
+  if (score >= 100) return { label: pick([
+    '▼ Did you do this on purpose?',
+    '▼ The colors were right there...',
+    '▼ Rough. Just rough.',
+    '▼ Have you considered a different hobby?',
+  ]), color: '#ff6b6b' };
+
+  return { label: pick([
+    '▼ A true disaster. Iconic.',
+    '▼ We don\'t know what happened here',
+    '▼ The audacity of these scores',
+    '▼ Rock bottom has a new address',
+  ]), color: '#ff6b6b' };
+}
+
+function endGame() {
+  const saved = parseInt(localStorage.getItem('chromaBest') || '0');
+  if (totalScore > saved) localStorage.setItem('chromaBest', totalScore);
+
+  // Save daily result
+  if (isDailyMode) {
+    localStorage.setItem(getTodayKey(), JSON.stringify({
+      score: totalScore, scores, streakBonus, day: getDayNumber()
+    }));
+    $('gameOverTitle').textContent = 'Daily Complete!';
+    $('dailyNum').textContent = `Daily Challenge #${getDayNumber()}`;
+    $('dailyNum').style.display = 'block';
+  } else {
+    $('gameOverTitle').textContent = 'Game Over';
+    $('dailyNum').style.display = 'none';
+  }
+
+  $('finalScore').textContent = totalScore;
+
+  // Set final grade
+  const finalGrade = getFinalGrade(totalScore);
+  $('finalGrade').textContent = finalGrade.label;
+  $('finalGrade').style.color = finalGrade.color;
+
+  // Show streak bonus if earned
+  if (streakBonus > 0) {
+    $('finalStreakBonus').textContent = `🔥 includes +${streakBonus} streak bonus!`;
+    $('finalStreakBonus').style.display = 'block';
+  } else {
+    $('finalStreakBonus').style.display = 'none';
+  }
+
+  // Build round breakdown
+  const breakdown = $('roundBreakdown');
+  breakdown.innerHTML = '';
+  scores.forEach((s, i) => {
+    const color = s >= 90 ? '#69db7c' : s >= 70 ? '#e8d5b0' : s >= 50 ? '#ffa94d' : '#ff6b6b';
+    const row = document.createElement('div');
+    row.className = 'breakdown-row';
+    row.innerHTML = `
+      <span>Round ${i + 1}</span>
+      <div class="breakdown-bar-track">
+        <div class="breakdown-bar-fill" style="width:${s}%; background:${color}"></div>
+      </div>
+      <span class="breakdown-score">${s}</span>
+    `;
+    breakdown.appendChild(row);
+  });
+
+  // Add total row
+  const totalRow = document.createElement('div');
+  totalRow.className = 'breakdown-row';
+  totalRow.style.cssText = 'border-top:1px solid var(--border); padding-top:10px; margin-top:2px;';
+  totalRow.innerHTML = `<span style="color:var(--accent)">Total</span><div></div><span class="breakdown-score" style="color:var(--accent); font-size:16px">${totalScore}</span>`;
+  breakdown.appendChild(totalRow);
+
+  $('gameOver').classList.add('show');
+  haptic('heavy');
+  setTimeout(() => {
+    if (totalScore >= 210) sounds.fanfare();
+    else sounds.sad();
+  }, 300);
+
+  if (isDailyMode) addDailyCountdown();
+}
+
+function showTutorial() {
+  $('gameOver').classList.remove('show');
+  setPhase('memorize');
+  $('targetSwatch').style.background = '#1a1a1a';
+  $('yourSwatch').style.background = '#1a1a1a';
+  $('memorizeOverlay').classList.remove('show');
+  $('resultPanel').classList.remove('show');
+  $('submitBtn').style.display = 'block';
+  $('nextBtn').style.display = 'none';
+  $('sliderPanel').style.opacity = '1';
+  $('sliderPanel').style.pointerEvents = 'auto';
+
+  // Check if daily already played today
+  const alreadyPlayed = !!localStorage.getItem(getTodayKey());
+  $('dailyBtn').textContent = alreadyPlayed ? '📅 View Today\'s Result' : '📅 Daily Challenge';
+  $('dailyDoneMsg').style.display = alreadyPlayed ? 'block' : 'none';
+
+  $('tutorialScreen').classList.add('show');
+}
+
+// ── Daily challenge helpers ──────────────────────────────
+const DAILY_START = new Date('2026-01-01').getTime();
+
+function getDayNumber() {
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  return Math.floor((today - DAILY_START) / 86400000) + 1;
+}
+
+function getTodayKey() {
+  const now = new Date();
+  return `daily-${now.getFullYear()}-${now.getMonth()+1}-${now.getDate()}`;
+}
+
+// Seeded random number generator (mulberry32)
+function seededRand(seed) {
+  return function() {
+    seed |= 0; seed = seed + 0x6D2B79F5 | 0;
+    let t = Math.imul(seed ^ seed >>> 15, 1 | seed);
+    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  };
+}
+
+function getDailyColors() {
+  const dayNum = getDayNumber();
+  const rng = seededRand(dayNum * 999983);
+  const colors = [];
+  for (let i = 0; i < TOTAL_ROUNDS; i++) {
+    colors.push({
+      r: Math.floor(rng() * 215) + 20,
+      g: Math.floor(rng() * 215) + 20,
+      b: Math.floor(rng() * 215) + 20,
+    });
+  }
+  return colors;
+}
+
+let isDailyMode = false;
+let dailyColors = [];
+let dailyRoundIndex = 0;
+
+function beginDaily() {
+  const key = getTodayKey();
+  const saved = localStorage.getItem(key);
+  if (saved) {
+    // Already played today — show result
+    const data = JSON.parse(saved);
+    showDailyAlreadyPlayed(data);
+    return;
+  }
+  isDailyMode = true;
+  dailyColors = getDailyColors();
+  dailyRoundIndex = 0;
+  $('modeLabel').textContent = '📅 Daily #' + getDayNumber();
+  $('tutorialScreen').classList.remove('show');
+  startGame();
+}
+
+function beginPractice() {
+  isDailyMode = false;
+  $('modeLabel').textContent = '🔀 Random';
+  $('tutorialScreen').classList.remove('show');
+  startGame();
+}
+
+function showDailyAlreadyPlayed(data) {
+  // Show the saved score directly on the gameover screen
+  $('tutorialScreen').classList.remove('show');
+  $('gameOverTitle').textContent = 'Already Played!';
+  $('dailyNum').textContent = `Daily Challenge #${getDayNumber()}`;
+  $('dailyNum').style.display = 'block';
+  $('finalScore').textContent = data.score;
+  const grade = getFinalGrade(data.score);
+  $('finalGrade').textContent = grade.label;
+  $('finalGrade').style.color = grade.color;
+  if (data.streakBonus > 0) {
+    $('finalStreakBonus').textContent = `🔥 included +${data.streakBonus} streak bonus!`;
+    $('finalStreakBonus').style.display = 'block';
+  } else {
+    $('finalStreakBonus').style.display = 'none';
+  }
+  // Rebuild breakdown
+  const breakdown = $('roundBreakdown');
+  breakdown.innerHTML = '';
+  data.scores.forEach((s, i) => {
+    const color = s >= 90 ? '#69db7c' : s >= 70 ? '#e8d5b0' : s >= 50 ? '#ffa94d' : '#ff6b6b';
+    const row = document.createElement('div');
+    row.className = 'breakdown-row';
+    row.innerHTML = `<span>Round ${i+1}</span><div class="breakdown-bar-track"><div class="breakdown-bar-fill" style="width:${s}%;background:${color}"></div></div><span class="breakdown-score">${s}</span>`;
+    breakdown.appendChild(row);
+  });
+  const totalRow = document.createElement('div');
+  totalRow.className = 'breakdown-row';
+  totalRow.style.cssText = 'border-top:1px solid var(--border);padding-top:10px;margin-top:2px;';
+  totalRow.innerHTML = `<span style="color:var(--accent)">Total</span><div></div><span class="breakdown-score" style="color:var(--accent);font-size:16px">${data.score}</span>`;
+  breakdown.appendChild(totalRow);
+
+  // Restore scores/streakBonus for share
+  scores = data.scores;
+  totalScore = data.score;
+  streakBonus = data.streakBonus || 0;
+
+  $('gameOver').classList.add('show');
+  // Add countdown to next daily
+  addDailyCountdown();
+}
+
+function addDailyCountdown() {
+  let el = $('dailyCountdown');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'dailyCountdown';
+    el.style.cssText = 'font-size:10px;letter-spacing:2px;color:var(--muted);text-transform:uppercase;margin-bottom:12px;';
+    $('roundBreakdown').after(el);
+  }
+  function update() {
+    const now = new Date();
+    const tomorrow = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+    const diff = tomorrow - now;
+    const h = String(Math.floor(diff / 3600000)).padStart(2,'0');
+    const m = String(Math.floor((diff % 3600000) / 60000)).padStart(2,'0');
+    const s = String(Math.floor((diff % 60000) / 1000)).padStart(2,'0');
+    el.textContent = `Next daily in ${h}:${m}:${s}`;
+  }
+  update();
+  setInterval(update, 1000);
+}
+
+function beginGame() {
+  beginPractice();
+}
+
+function startGame() {
+  round = 1;
+  totalScore = 0;
+  scores = [];
+  streak = 0;
+  streakBonus = 0;
+  $('streakDisplay').textContent = '—';
+  $('streakDisplay').style.color = 'var(--accent)';
+  $('history').innerHTML = '';
+  $('totalScore').textContent = '0';
+  $('roundDisplay').textContent = `1 / ${TOTAL_ROUNDS}`;
+  $('resultPanel').classList.remove('show');
+  $('submitBtn').style.display = 'block';
+  $('nextBtn').style.display = 'none';
+  $('sliderPanel').style.opacity = '1';
+  $('sliderPanel').style.pointerEvents = 'auto';
+  $('gameOver').classList.remove('show');
+  $('memorizeOverlay').classList.remove('show');
+
+  const saved = parseInt(localStorage.getItem('chromaBest') || '0');
+  $('bestScore').textContent = saved > 0 ? saved : '—';
+
+  const hueStart = rand(0, 360);
+  $('hueSlider').value = hueStart;
+  $('hueVal').textContent = hueStart + '°';
+  const [hr, hg, hb] = hslToRgb(hueStart, 100, 50);
+  $('rSlider').value = hr;
+  $('gSlider').value = hg;
+  $('bSlider').value = hb;
+  $('lightSlider').value = 100;
+  $('lightVal').textContent = '—';
+  updateYourColor();
+  newTarget();
+}
+
+['rSlider','gSlider','bSlider','lightSlider'].forEach(id => {
+  $(id).addEventListener('input', updateYourColor);
+});
+$('hueSlider').addEventListener('input', onHueChange);
+
+// Show tutorial on first load, not the game
+// startGame() is called by beginGame() when user taps Play
+
+// Check daily status on load
+const alreadyPlayedToday = !!localStorage.getItem(getTodayKey());
+$('dailyBtn').textContent = alreadyPlayedToday ? '📅 View Today\'s Result' : '📅 Daily Challenge';
+$('dailyDoneMsg').style.display = alreadyPlayedToday ? 'block' : 'none';
+
+// Show install banner on iOS Safari (not already installed)
+const isIos = /iphone|ipad|ipod/i.test(navigator.userAgent);
+const isStandalone = window.navigator.standalone === true;
+if (isIos && !isStandalone) {
+  $('installBanner').style.display = 'flex';
+}
+</script>
+</body>
+</html>
